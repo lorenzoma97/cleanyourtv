@@ -1,0 +1,65 @@
+name: Build APK (fork lorenzoma97)
+
+# Builds the launcher with ONE fixed signing key (secret SIGNING_KEYSTORE_B64) and publishes it as the
+# rolling prerelease "apk-latest", so every new build installs over the one already on the TV.
+on:
+  workflow_dispatch:
+  push:
+    branches: [casa]
+    paths: ["launcher/**", "addons/**", ".github/workflows/build-apk.yml"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-apk
+  cancel-in-progress: true
+
+env:
+  # SHA-256 of the signing certificate (public; ~/.cleanyourtv/signing/cert-sha256.txt). The build fails if the APK
+  # is signed with anything else, e.g. a throwaway debug key generated because the secret did not land.
+  EXPECTED_CERT_SHA256: ae56be168b31032cdd72d20844cf4df6e3bc4511f084b4dee6bb66bc10c697b2
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platforms;android-34 build-tools;34.0.0
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Fixed signing key
+        env:
+          SIGNING_KEYSTORE_B64: ${{ secrets.SIGNING_KEYSTORE_B64 }}
+        run: |
+          test -n "$SIGNING_KEYSTORE_B64" || { echo "Missing secret SIGNING_KEYSTORE_B64"; exit 1; }
+          dir="${ANDROID_USER_HOME:-$HOME/.android}"
+          mkdir -p "$dir"
+          echo "$SIGNING_KEYSTORE_B64" | base64 -d > "$dir/debug.keystore"
+      - name: Build launcher
+        working-directory: launcher
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease
+      - name: Check signature
+        run: |
+          apk=launcher/app/build/outputs/apk/release/app-release.apk
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --print-certs "$apk" | tee cert.txt
+          grep -qi "SHA-256 digest: $EXPECTED_CERT_SHA256" cert.txt || { echo "APK not signed with the fixed key"; exit 1; }
+          cp "$apk" tvhome-release.apk
+          sha256sum tvhome-release.apk > SHA256SUMS
+          echo "release APK: $(( $(stat -c %s tvhome-release.apk) / 1024 )) KB"
+      - name: Publish rolling prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete apk-latest --yes --cleanup-tag || true
+          gh release create apk-latest tvhome-release.apk SHA256SUMS cert.txt \
+            --target "$GITHUB_SHA" --prerelease \
+            --title "APK latest (${GITHUB_SHA::7})" \
+            --notes "Build ${GITHUB_RUN_NUMBER} from ${GITHUB_SHA}"
