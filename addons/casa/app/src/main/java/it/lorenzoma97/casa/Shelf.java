@@ -34,11 +34,17 @@ final class Shelf {
         final long tmdb;
         final String line;
         final String netflixId;
+        /** Badges for the shelf: Top 10 rank (0 = none), "Nuova stagione 4" / "Nuova serie", "Miniserie" / "Stagione 2". */
+        final int top;
+        final String tag, season;
 
-        Entry(long tmdb, String line, String netflixId) {
+        Entry(long tmdb, String line, String netflixId, int top, String tag, String season) {
             this.tmdb = tmdb;
             this.line = line;
             this.netflixId = netflixId;
+            this.top = top;
+            this.tag = tag;
+            this.season = season;
         }
     }
 
@@ -94,7 +100,9 @@ final class Shelf {
                     JSONObject x = items.optJSONObject(i);
                     long id = x == null ? 0 : x.optLong("tmdb", 0);
                     if (id <= 0 || !seen.add(id)) continue;   // Maschi veri S1 and S2 both in the chart: once
-                    list.add(new Entry(id, topLine(x.optInt("rank"), x.optString("season", null)), opt(x, "netflix_id")));
+                    String season = opt(x, "season");
+                    list.add(new Entry(id, topLine(x.optInt("rank"), season), opt(x, "netflix_id"),
+                            x.optInt("rank"), null, seasonLabel(season)));
                 }
             }
             JSONArray news = novita == null ? null : novita.optJSONArray(svc);
@@ -103,7 +111,8 @@ final class Shelf {
                 JSONObject x = news.optJSONObject(i);
                 long id = x == null ? 0 : x.optLong("tmdb", 0);
                 if (id <= 0 || !seen.add(id)) continue;
-                list.add(new Entry(id, novitaLine(x.optString("kind"), x.optInt("season", 1)), opt(x, "nf")));
+                String line = novitaLine(x.optString("kind"), x.optInt("season", 1));
+                list.add(new Entry(id, line, opt(x, "nf"), 0, line, null));
             }
             if (!list.isEmpty()) out.put(pkg, list);
         }
@@ -156,7 +165,19 @@ final class Shelf {
                             .put("tmdb", en.tmdb)
                             .put("title", d.optString("name"))
                             .put("line", en.line)
-                            .put("image", img.getName());
+                            .put("image", img.getName())
+                            .put("plot", Tmdb.shortPlot(d.optString("overview"), 170))
+                            .put("top", en.top);
+                    if (en.tag != null) item.put("tag", en.tag);
+                    if (en.season != null) item.put("season", en.season);
+                    String logo = Tmdb.logo(d);
+                    if (logo != null) {
+                        try {
+                            item.put("logo", Tmdb.image(ctx, "img", logo, "w500").getName());
+                        } catch (Exception ex) {
+                            Log.w(TAG, "logo " + en.tmdb + ": " + ex);   // the title shows as text instead
+                        }
+                    }
                     String action = netflixIntent(en.netflixId);
                     if (action != null) item.put("action", action);
                     items.put(item);

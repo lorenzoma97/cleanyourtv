@@ -69,5 +69,37 @@ public class ShelfTest {
         assertEquals("77", nf.get(Shelf.NETFLIX_TOP).netflixId);
         assertEquals(1, plan.get("com.amazon.amazonvideo.livingroom").size());
         assertNull(plan.get("it.mediaset.infinitytv"));       // nothing to show: no entry, the launcher keeps the app art
+        assertEquals(1, nf.get(0).top);                       // badges for the redesigned shelf
+        assertNull(nf.get(0).tag);
+        assertEquals(0, nf.get(Shelf.NETFLIX_TOP).top);
+        assertEquals("Nuova stagione 3", nf.get(Shelf.NETFLIX_TOP).tag);
+    }
+
+    @Test
+    public void logoAndPlot() throws Exception {
+        JSONObject d = new JSONObject("{\"images\":{\"logos\":["
+                + "{\"file_path\":\"/en.png\",\"iso_639_1\":\"en\",\"vote_average\":5.4},"
+                + "{\"file_path\":\"/it.svg\",\"iso_639_1\":\"it\",\"vote_average\":9},"      // SVG: the TV cannot draw it
+                + "{\"file_path\":\"/it.png\",\"iso_639_1\":\"it\",\"vote_average\":5.1}]}}");
+        assertEquals("/it.png", Tmdb.logo(d));
+        assertNull(Tmdb.logo(new JSONObject("{\"images\":{\"logos\":[]}}")));
+        assertEquals("Breve.", Tmdb.shortPlot("Breve.", 170));
+        String plot = Tmdb.shortPlot("Prima frase abbastanza lunga da contare. Seconda frase che non entra nel limite dei caratteri.", 60);
+        assertEquals("Prima frase abbastanza lunga da contare.", plot);
+        assertTrue(Tmdb.shortPlot("parola ".repeat(40), 50).endsWith("…"));
+    }
+
+    @Test
+    public void weatherWords() {
+        assertEquals("Sereno", Weather.describe(0, true)[0]);
+        assertEquals("moon", Weather.describe(0, false)[1]);
+        assertEquals("Poco nuvoloso", Weather.describe(2, true)[0]);
+        assertEquals("fog", Weather.describe(45, true)[1]);
+        assertEquals("Pioggia forte", Weather.describe(65, true)[0]);
+        assertEquals("storm", Weather.describe(95, true)[1]);
+        assertEquals("Aria buona", Weather.air(18));
+        assertEquals("Aria discreta", Weather.air(40));
+        assertEquals("Aria scadente", Weather.air(61));
+        assertNull(Weather.air(-1));
     }
 }

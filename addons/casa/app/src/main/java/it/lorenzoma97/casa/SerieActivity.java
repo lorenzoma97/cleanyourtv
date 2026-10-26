@@ -46,7 +46,8 @@ public class SerieActivity extends Activity {
     private int drawToken;
 
     private ImageView backdrop;
-    private TextView title, meta, overview, hint;
+    private TextView title, overview, hint;
+    private LinearLayout chips;
     private View buttons;
 
     @Override
@@ -55,7 +56,7 @@ public class SerieActivity extends Activity {
         setContentView(R.layout.activity_serie);
         backdrop = findViewById(R.id.backdrop);
         title = findViewById(R.id.title);
-        meta = findViewById(R.id.meta);
+        chips = findViewById(R.id.chips);
         overview = findViewById(R.id.overview);
         hint = findViewById(R.id.hint);
         buttons = findViewById(R.id.buttons);
@@ -128,7 +129,7 @@ public class SerieActivity extends Activity {
             current = -1;
             backdrop.animate().alpha(0f).setDuration(300).start();
             title.setText(R.string.all_seen);
-            meta.setText("");
+            chips.removeAllViews();
             overview.setText("");
             buttons.setVisibility(View.INVISIBLE);
             hint.setVisibility(View.INVISIBLE);
@@ -159,10 +160,20 @@ public class SerieActivity extends Activity {
         currentDetails = d;
         JSONObject item = Pool.item(pool, id);
         title.setText(d == null ? "#" + id : d.optString("name"));
-        meta.setText(metaLine(d, item));
+        fillChips(d, item);
         overview.setText(d == null ? "" : d.optString("overview"));
         buttons.setVisibility(View.VISIBLE);
         hint.setVisibility(View.VISIBLE);
+        // The draw "lands" like a thrown die: a short spin and grow, then still.
+        title.animate().cancel();
+        title.setPivotX(0f);
+        title.setPivotY(title.getHeight() / 2f);
+        title.setRotation(-14f);
+        title.setScaleX(0.6f);
+        title.setScaleY(0.6f);
+        title.setAlpha(0.2f);
+        title.animate().rotation(0f).scaleX(1f).scaleY(1f).alpha(1f).setDuration(600)
+                .setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).start();
         backdrop.animate().cancel();
         backdrop.setImageBitmap(picture);
         backdrop.setScaleX(1f);
@@ -174,35 +185,42 @@ public class SerieActivity extends Activity {
         ).start();
     }
 
-    /** "2021 · 2 stagioni · Netflix · Thriller, Crime · TMDB 8,4" */
-    private String metaLine(JSONObject d, JSONObject item) {
-        List<String> parts = new ArrayList<>();
+    /** Year, seasons, two genres, the rating (amber) and the services (outlined), as small boxes under the title. */
+    private void fillChips(JSONObject d, JSONObject item) {
+        chips.removeAllViews();
         if (d != null) {
             String year = d.optString("first_air_date", "");
-            if (year.length() >= 4) parts.add(year.substring(0, 4));
+            if (year.length() >= 4) addChip(year.substring(0, 4), R.drawable.chip, 0xFFFFFFFF);
             int seasons = d.optInt("number_of_seasons", 0);
-            if (seasons > 0) parts.add(seasons == 1 ? "1 stagione" : seasons + " stagioni");
+            if (seasons > 0) addChip(seasons == 1 ? "1 stagione" : seasons + " stagioni", R.drawable.chip, 0xFFFFFFFF);
+        }
+        JSONArray g = item == null ? null : item.optJSONArray("g");
+        JSONObject labels = pool.optJSONObject("genres");
+        for (int i = 0, n = 0; g != null && i < g.length() && n < 2; i++, n++) {
+            JSONObject x = labels == null ? null : labels.optJSONObject(g.optString(i));
+            addChip(x == null ? g.optString(i) : x.optString("label"), R.drawable.chip, 0xFFFFFFFF);
+        }
+        if (d != null && d.optDouble("vote_average", 0) > 0) {
+            addChip(String.format(java.util.Locale.ITALY, "★ %.1f", d.optDouble("vote_average")), R.drawable.chip_amber, 0xFF160F02);
         }
         JSONObject services = content == null ? null : content.optJSONObject("services");
         JSONArray s = item == null ? null : item.optJSONArray("s");
-        List<String> names = new ArrayList<>();
         for (int i = 0; s != null && i < s.length(); i++) {
             JSONObject svc = services == null ? null : services.optJSONObject(s.optString(i));
-            names.add(svc == null ? s.optString(i) : svc.optString("name"));
+            addChip(svc == null ? s.optString(i) : svc.optString("name"), R.drawable.chip_outline, 0xFFFFFFFF);
         }
-        if (!names.isEmpty()) parts.add(String.join(" e ", names));
-        JSONArray g = item == null ? null : item.optJSONArray("g");
-        JSONObject labels = pool.optJSONObject("genres");
-        List<String> gl = new ArrayList<>();
-        for (int i = 0; g != null && i < g.length() && gl.size() < 2; i++) {
-            JSONObject x = labels == null ? null : labels.optJSONObject(g.optString(i));
-            gl.add(x == null ? g.optString(i) : x.optString("label"));
-        }
-        if (!gl.isEmpty()) parts.add(String.join(", ", gl));
-        if (d != null && d.optDouble("vote_average", 0) > 0) {
-            parts.add(String.format(java.util.Locale.ITALY, "TMDB %.1f", d.optDouble("vote_average")));
-        }
-        return String.join("  ·  ", parts);
+    }
+
+    private void addChip(String text, int background, int color) {
+        TextView c = new TextView(this, null, 0, R.style.CasaChip);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.setMarginEnd((int) (8 * getResources().getDisplayMetrics().density));
+        c.setLayoutParams(lp);
+        c.setBackgroundResource(background);
+        c.setTextColor(color);
+        c.setText(text);
+        chips.addView(c);
     }
 
     private void watch() {

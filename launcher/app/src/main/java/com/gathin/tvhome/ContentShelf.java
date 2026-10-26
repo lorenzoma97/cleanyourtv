@@ -34,6 +34,11 @@ final class ContentShelf {
         final String title, line;
         final Uri image;
         final Intent action;
+        /** The redesigned shelf: title logo (null: text), two lines of plot, badges, the resume point and progress. */
+        Uri logo;
+        String plot, tag, season, resume;
+        int top;
+        float progress = -1f;
 
         Item(String title, String line, Uri image, Intent action) {
             this.title = title;
@@ -82,7 +87,10 @@ final class ContentShelf {
                 if (image == null) continue;
                 String line = resumeLine(c.getString(3), c.getString(4), c.getString(2), c.getLong(10), c.getLong(11));
                 order.add(new long[]{c.getLong(9), rows.size()});
-                rows.add(new Item(c.getString(1).trim(), line, image, intent(c.getString(7), pkg)));
+                Item item = new Item(c.getString(1).trim(), line, image, intent(c.getString(7), pkg));
+                item.resume = episode(c.getString(3), c.getString(4), c.getString(2));
+                item.progress = c.getLong(11) > 0 && c.getLong(10) > 0 ? Math.min(1f, (float) c.getLong(10) / c.getLong(11)) : -1f;
+                rows.add(item);
             }
         } catch (RuntimeException e) {
             Log.w(TAG, "Watch Next: " + e);
@@ -95,14 +103,20 @@ final class ContentShelf {
         return out;
     }
 
-    /** "Riprendi · S2E5 · 40%" from whichever parts the app filled in. */
-    static String resumeLine(String season, String episode, String episodeTitle, long position, long duration) {
-        StringBuilder sb = new StringBuilder("Riprendi");
+    /** "S2E5", else the episode title, else null. */
+    static String episode(String season, String episode, String episodeTitle) {
         StringBuilder se = new StringBuilder();
         if (!blank(season)) se.append('S').append(season.trim());
         if (!blank(episode)) se.append('E').append(episode.trim());
-        if (se.length() > 0) sb.append(" · ").append(se);
-        else if (!blank(episodeTitle)) sb.append(" · ").append(episodeTitle.trim());
+        if (se.length() > 0) return se.toString();
+        return blank(episodeTitle) ? null : episodeTitle.trim();
+    }
+
+    /** "Riprendi · S2E5 · 40%" from whichever parts the app filled in. */
+    static String resumeLine(String season, String episode, String episodeTitle, long position, long duration) {
+        StringBuilder sb = new StringBuilder("Riprendi");
+        String ep = episode(season, episode, episodeTitle);
+        if (ep != null) sb.append(" · ").append(ep);
         if (duration > 0 && position > 0) sb.append(" · ").append(Math.min(99, (int) (100 * position / duration))).append('%');
         return sb.toString();
     }
@@ -116,8 +130,17 @@ final class ContentShelf {
                 String title = c.getString(c.getColumnIndexOrThrow("title"));
                 String image = c.getString(c.getColumnIndexOrThrow("image"));
                 if (blank(title) || blank(image)) continue;
-                out.add(new Item(title, c.getString(c.getColumnIndexOrThrow("line")), Uri.parse(image),
-                        intent(c.getString(c.getColumnIndexOrThrow("action")), pkg)));
+                Item item = new Item(title, c.getString(c.getColumnIndexOrThrow("line")), Uri.parse(image),
+                        intent(c.getString(c.getColumnIndexOrThrow("action")), pkg));
+                // Columns added with the redesign; an older Casa simply lacks them.
+                String logo = column(c, "logo");
+                if (!blank(logo)) item.logo = Uri.parse(logo);
+                item.plot = column(c, "plot");
+                item.tag = column(c, "tag");
+                item.season = column(c, "season");
+                int top = c.getColumnIndex("top");
+                item.top = top >= 0 ? c.getInt(top) : 0;
+                out.add(item);
             }
         } catch (RuntimeException e) {
             // Casa missing or broken: the shelf simply keeps the app's own artwork.
@@ -167,6 +190,45 @@ final class ContentShelf {
             }
         } catch (Exception e) {
             Log.w(TAG, "picture " + uri + ": " + e);
+            return null;
+        }
+    }
+
+    private static String column(Cursor c, String name) {
+        int i = c.getColumnIndex(name);
+        return i < 0 ? null : c.getString(i);
+    }
+
+    /** Bologna now from Casa: {city, temp, max, min, desc, icon, air, aqi}; null when Casa has no reading. */
+    static String[] weather(Context ctx) {
+        try (Cursor c = ctx.getContentResolver().query(Uri.parse("content://" + CASA + "/weather"), null, null, null, null)) {
+            if (c == null || !c.moveToFirst()) return null;
+            String[] out = new String[8];
+            String[] cols = {"city", "temp", "max", "min", "desc", "icon", "air", "aqi"};
+            for (int i = 0; i < cols.length; i++) out[i] = column(c, cols[i]);
+            return out;
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** Logos keep their transparency (ARGB), small: at most maxWidth wide. */
+    static Bitmap decodeLogo(Context ctx, Uri uri, int maxWidth) {
+        ContentResolver r = ctx.getContentResolver();
+        try {
+            BitmapFactory.Options bounds = new BitmapFactory.Options();
+            bounds.inJustDecodeBounds = true;
+            try (InputStream in = r.openInputStream(uri)) {
+                BitmapFactory.decodeStream(in, null, bounds);
+            }
+            if (bounds.outWidth <= 0) return null;
+            BitmapFactory.Options o = new BitmapFactory.Options();
+            o.inSampleSize = 1;
+            while (bounds.outWidth / (o.inSampleSize * 2) >= maxWidth) o.inSampleSize *= 2;
+            try (InputStream in = r.openInputStream(uri)) {
+                return BitmapFactory.decodeStream(in, null, o);
+            }
+        } catch (Exception e) {
             return null;
         }
     }

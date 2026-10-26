@@ -25,7 +25,8 @@ import java.util.List;
  */
 public class HeroProvider extends ContentProvider {
     static final String AUTHORITY = "it.lorenzoma97.casa.hero";
-    private static final String[] COLUMNS = {"title", "line", "image", "action"};
+    private static final String[] COLUMNS = {"title", "line", "image", "action", "logo", "plot", "top", "tag", "season"};
+    private static final String[] WEATHER = {"city", "temp", "max", "min", "desc", "icon", "air", "aqi"};
     private static final long URL_CACHE_BYTES = 15L * 1024 * 1024;
 
     @Override
@@ -36,8 +37,9 @@ public class HeroProvider extends ContentProvider {
 
     @Override
     public Cursor query(Uri uri, String[] projection, String selection, String[] args, String sortOrder) {
-        MatrixCursor c = new MatrixCursor(COLUMNS);
         List<String> seg = uri.getPathSegments();
+        if (seg.size() == 1 && "weather".equals(seg.get(0))) return weather();
+        MatrixCursor c = new MatrixCursor(COLUMNS);
         if (seg.size() != 2 || !"items".equals(seg.get(0))) return c;
         File f = Store.file(getContext(), "shelf.json");
         if (!Store.fresh(f, Shelf.CONTENT_TTL * 2)) RefreshJob.kick(getContext());
@@ -47,12 +49,27 @@ public class HeroProvider extends ContentProvider {
             JSONArray items = new JSONObject(text).optJSONArray(seg.get(1));
             for (int i = 0; items != null && i < items.length(); i++) {
                 JSONObject x = items.getJSONObject(i);
+                String logo = x.isNull("logo") ? null : "content://" + AUTHORITY + "/img/" + x.optString("logo");
                 c.addRow(new Object[]{x.optString("title"), x.optString("line"),
-                        "content://" + AUTHORITY + "/img/" + x.optString("image"), x.optString("action", null)});
+                        "content://" + AUTHORITY + "/img/" + x.optString("image"), x.isNull("action") ? null : x.optString("action"),
+                        logo, x.optString("plot"), x.optInt("top", 0),
+                        x.isNull("tag") ? null : x.optString("tag"), x.isNull("season") ? null : x.optString("season")});
             }
         } catch (Exception ignored) {
             // a broken shelf.json means an empty shelf, never a crash in the launcher's process
         }
+        return c;
+    }
+
+    /** One row: Bologna now. Fetched on the binder thread when stale (the launcher asks off its main thread). */
+    private Cursor weather() {
+        MatrixCursor c = new MatrixCursor(WEATHER);
+        JSONObject w = Weather.now(getContext());
+        if (w == null) return c;
+        String[] d = Weather.describe(w.optInt("code"), w.optInt("day", 1) == 1);
+        int aqi = w.has("aqi") ? w.optInt("aqi") : -1;
+        c.addRow(new Object[]{Weather.CITY, Math.round(w.optDouble("temp")), Math.round(w.optDouble("max")),
+                Math.round(w.optDouble("min")), d[0], d[1], Weather.air(aqi), aqi});
         return c;
     }
 

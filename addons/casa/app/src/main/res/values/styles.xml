@@ -4,12 +4,16 @@
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_marginEnd">14dp</item>
-        <item name="android:paddingStart">26dp</item>
+        <item name="android:paddingStart">22dp</item>
         <item name="android:paddingEnd">26dp</item>
         <item name="android:paddingTop">11dp</item>
         <item name="android:paddingBottom">11dp</item>
         <item name="android:background">@drawable/pill</item>
         <item name="android:textColor">@color/pill_text</item>
+        <item name="android:drawableTint">@color/pill_text</item>
+        <item name="android:drawablePadding">10dp</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:fontFamily">@font/outfit_medium</item>
         <item name="android:textSize">17sp</item>
         <item name="android:focusable">true</item>
         <item name="android:clickable">true</item>
@@ -22,5 +26,19 @@
         <item name="android:paddingBottom">8dp</item>
         <item name="android:layout_marginEnd">10dp</item>
         <item name="android:textSize">15sp</item>
+    </style>
+
+    <!-- Small metadata boxes under the title: year, seasons, genres, rating, service. -->
+    <style name="CasaChip">
+        <item name="android:paddingStart">9dp</item>
+        <item name="android:paddingEnd">9dp</item>
+        <item name="android:paddingTop">4dp</item>
+        <item name="android:paddingBottom">4dp</item>
+        <item name="android:background">@drawable/chip</item>
+        <item name="android:textColor">#FFFFFFFF</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:fontFamily">monospace</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:letterSpacing">0.08</item>
     </style>
 </resources>

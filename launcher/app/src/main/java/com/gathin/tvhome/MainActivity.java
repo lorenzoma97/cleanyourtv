@@ -327,6 +327,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             if (festive) updateWifiLabel();
             sky.update();
             wallpaperPlayer.update();
+            if (++weatherMinutes >= 10) updateWeather();   // fork: Casa caches 30 min; asking every 10 is cheap
             handler.postDelayed(this, MINUTE_MS);
         }
     };
@@ -389,6 +390,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         heroMeta = findViewById(R.id.heroMeta);
         heroDots = findViewById(R.id.heroDots);
         heroArt = findViewById(R.id.heroArt);
+        heroLogo = findViewById(R.id.heroLogo);
+        heroChips = findViewById(R.id.heroChips);
+        heroProgress = findViewById(R.id.heroProgress);
+        heroPlot = findViewById(R.id.heroPlot);
+        heroSegs = findViewById(R.id.heroSegs);
+        // The shelf grows and shrinks with each title: keep it anchored above the dock, never under it.
+        hero.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
+            if (b - t != ob - ot) placeHero();
+        });
         cinematic = cfg.cinematicHome;
         glowStyle = cfg.glowStyle;
         if (cinematic) setUpCinematicShelf();
@@ -738,6 +748,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onResume() {
         super.onResume();
+        updateWeather();
         // A festival that started or ended while Home was in the background: rebuild with or without it.
         if (festive != festival.active(LocalDate.now())) {
             recreate();
@@ -1423,7 +1434,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private void showHero(int position, float dockTopInRoot) {
         String label = adapter.labelAt(position);
         int color = adapter.ambientColorAt(position);
-        float y = dockTopInRoot - 14 * density - 26 * density - hero.getHeight();
+        lastDockTop = dockTopInRoot;
+        float y = Math.max(heroMinY(), dockTopInRoot - 14 * density - 26 * density - hero.getHeight());
         // Fork: while a content shelf title is on screen for this app, it (not the app name) is what the shelf shows.
         boolean onShelf = shelfShown != null && java.util.Objects.equals(adapter.packageAt(position), shelfPkg);
         boolean changed = !(onShelf ? shelfShown.title : label).contentEquals(heroName.getText());
@@ -1484,11 +1496,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** The shelf's text for this dock app: its name and, on the cinematic shelf, "Last opened" and the dots. */
     private void fillHero(int position, String label) {
         if (cinematic && shelfShown != null && java.util.Objects.equals(adapter.packageAt(position), shelfPkg)) {
-            showShelfText(shelfShown);
-            updateHeroDots(position);
+            showShelfText(shelfShown, shelfLogo);
             return;
         }
-        if (cinematic) heroName.setTextSize(TypedValue.COMPLEX_UNIT_SP, 68f);
+        if (cinematic) appShelfLook();
         heroName.setText(label);
         if (!cinematic) return;
         updateHeroMeta(position);
@@ -1582,7 +1593,16 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private String shelfPkg, shelfLabel;
     private List<ContentShelf.Item> shelfItems;
     private ContentShelf.Item shelfShown;
+    private Bitmap shelfLogo;
     private int shelfIndex, shelfToken, shelfFailures;
+    private ImageView heroLogo;
+    private LinearLayout heroChips, heroSegs;
+    private View heroProgress;
+    private TextView heroPlot;
+    /** Where the dock band starts (root coordinates): the shelf is placed from there upwards. */
+    private float lastDockTop = -1;
+    private int weatherMinutes;
+    private android.animation.ValueAnimator segRun;
 
     private void startShelf(int position) {
         String pkg = adapter.packageAt(position);
@@ -1632,8 +1652,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         int token = shelfToken;
         int width = Math.max(960, Math.min(1280, getResources().getDisplayMetrics().widthPixels));
         Context app = getApplicationContext();
+        int logoWidth = (int) (460 * density);
         shelfIo.execute(() -> {
             Bitmap bmp = ContentShelf.decode(app, item.image, width);
+            Bitmap logo = bmp == null || item.logo == null ? null : ContentShelf.decodeLogo(app, item.logo, logoWidth);
             handler.post(() -> {
                 if (token != shelfToken || isDestroyed()) return;
                 if (bmp == null) {
@@ -1642,7 +1664,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     return;
                 }
                 shelfFailures = 0;
-                applyShelfItem(item, bmp);
+                applyShelfItem(item, bmp, logo);
                 if (items.size() > 1) {
                     handler.removeCallbacks(shelfTick);
                     handler.postDelayed(shelfTick, SHELF_ROTATE_MS);
@@ -1651,15 +1673,16 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         });
     }
 
-    private void applyShelfItem(ContentShelf.Item item, Bitmap bmp) {
+    private void applyShelfItem(ContentShelf.Item item, Bitmap bmp, Bitmap logo) {
         boolean first = shelfShown == null;
         shelfShown = item;
+        shelfLogo = logo;
         heroArtKey = "shelf:" + shelfPkg + ":" + shelfIndex;   // showHeroArt puts the app's art back when focus moves
         heroArt.animate().cancel();
         if (!animations) {
             heroArt.setImageBitmap(bmp);
             heroArt.setAlpha(SHELF_ART_ALPHA);
-            showShelfText(item);
+            showShelfText(item, logo);
             return;
         }
         heroArt.animate().alpha(0f).setDuration(first ? 200 : 320).withEndAction(() -> {
@@ -1671,27 +1694,241 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                             .setInterpolator(new android.view.animation.LinearInterpolator()).start()).start();
         }).start();
         if (!heroShown) {
-            showShelfText(item);
+            showShelfText(item, logo);
             return;
         }
         hero.animate().cancel();
         hero.animate().alpha(0f).setDuration(160).withEndAction(() -> {
             if (shelfShown != item) return;
-            showShelfText(item);
+            showShelfText(item, logo);
             hero.animate().alpha(1f).setDuration(260).start();
         }).start();
     }
 
-    /** Title big; "Netflix · Top 10 in Italia · n. 1 · tieni premuto OK" under it. */
-    private void showShelfText(ContentShelf.Item item) {
-        heroName.setTextSize(TypedValue.COMPLEX_UNIT_SP, 56f);
-        heroName.setText(item.title);
-        StringBuilder line = new StringBuilder();
-        if (shelfLabel != null) line.append(shelfLabel);
-        if (item.line != null && !item.line.isEmpty()) line.append(line.length() > 0 ? "  ·  " : "").append(item.line);
-        if (item.action != null) line.append("  ·  tieni premuto OK");
-        heroMeta.setText(line);
+    /**
+     * The redesigned shelf, Netflix x Apple TV: the title's logo (or the title in capitals), badges (TOP 10 with the
+     * rank, Nuova stagione, Riprendi, the season, the service), the resume bar, two lines of plot, what OK does, and
+     * one segment per title with the current one filling up.
+     */
+    private void showShelfText(ContentShelf.Item item, Bitmap logo) {
+        if (logo != null && heroLogo != null) {
+            heroLogo.setImageBitmap(logo);
+            heroLogo.setVisibility(View.VISIBLE);
+            heroName.setVisibility(View.GONE);
+        } else {
+            if (heroLogo != null) heroLogo.setVisibility(View.GONE);
+            heroName.setVisibility(View.VISIBLE);
+            heroName.setTypeface(getResources().getFont(R.font.outfit_medium));
+            heroName.setAllCaps(true);
+            heroName.setLetterSpacing(0.02f);
+            heroName.setTextSize(TypedValue.COMPLEX_UNIT_SP, 50f);
+            heroName.setText(item.title);
+        }
+        if (heroChips != null) {
+            heroChips.removeAllViews();
+            if (item.top > 0) {
+                SpannableString s = new SpannableString("TOP 10  " + item.top);
+                s.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), 8, s.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                s.setSpan(new android.text.style.RelativeSizeSpan(1.35f), 8, s.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                addShelfChip(s, 0xFFE50914, 0, 0xFFFFFFFF);
+            }
+            if (item.tag != null) addShelfChip(item.tag, 0xFFE5A00D, 0, 0xFF160F02);
+            if (item.resume != null) addShelfChip("Riprendi · " + item.resume, 0x26FFFFFF, 0, 0xFFFFFFFF);
+            else if (item.progress >= 0) addShelfChip("Riprendi", 0x26FFFFFF, 0, 0xFFFFFFFF);
+            if (item.season != null) addShelfChip(item.season, 0x26FFFFFF, 0, 0xFFFFFFFF);
+            if (shelfLabel != null) addShelfChip(shelfLabel, 0, 0x55FFFFFF, 0xFFFFFFFF);
+            heroChips.setVisibility(heroChips.getChildCount() > 0 ? View.VISIBLE : View.GONE);
+        }
+        if (heroProgress != null) {
+            if (item.progress >= 0) {
+                View fill = heroProgress.findViewById(R.id.heroProgressFill);
+                ViewGroup.LayoutParams lp = fill.getLayoutParams();
+                lp.width = (int) (220 * density * Math.max(0.03f, item.progress));
+                fill.setLayoutParams(lp);
+                heroProgress.setVisibility(View.VISIBLE);
+            } else {
+                heroProgress.setVisibility(View.GONE);
+            }
+        }
+        if (heroPlot != null) {
+            boolean plot = item.plot != null && !item.plot.trim().isEmpty();
+            heroPlot.setText(plot ? item.plot : "");
+            heroPlot.setVisibility(plot ? View.VISIBLE : View.GONE);
+        }
+        String app = shelfLabel != null ? shelfLabel : "";
+        String cta = "OK  apri " + app + (item.action == null ? ""
+                : "   ·   tieni premuto OK  " + (item.resume != null || item.progress >= 0 ? "riprendi" : "apri il titolo"));
+        heroMeta.setTypeface(android.graphics.Typeface.MONOSPACE);
+        heroMeta.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f);
+        heroMeta.setLetterSpacing(0.04f);
+        heroMeta.setTextColor(0x8CFFFFFF);
+        heroMeta.setText(cta);
         heroMeta.setVisibility(View.VISIBLE);
+        heroDots.setVisibility(View.GONE);
+        showSegments();
+    }
+
+    private void addShelfChip(CharSequence text, int fill, int stroke, int color) {
+        TextView c = new TextView(this);
+        c.setText(text);
+        c.setTextColor(color);
+        c.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f);
+        c.setTypeface(android.graphics.Typeface.MONOSPACE);
+        c.setLetterSpacing(0.08f);
+        c.setAllCaps(true);
+        c.setIncludeFontPadding(false);
+        int h = (int) (8 * density), v = (int) (4 * density);
+        c.setPadding(h, v, h, v);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setCornerRadius(4 * density);
+        bg.setColor(fill);
+        if (stroke != 0) bg.setStroke((int) Math.max(1, density), stroke);
+        c.setBackground(bg);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.setMarginEnd((int) (8 * density));
+        heroChips.addView(c, lp);
+    }
+
+    /** One thin segment per title (at most 10): the ones already shown full, the current one filling in 8 s. */
+    private void showSegments() {
+        if (heroSegs == null) return;
+        if (segRun != null) segRun.cancel();
+        heroSegs.removeAllViews();
+        int n = shelfItems == null ? 0 : Math.min(10, shelfItems.size());
+        if (n < 2) {
+            heroSegs.setVisibility(View.GONE);
+            return;
+        }
+        int w = (int) (26 * density), gap = (int) (5 * density);
+        View running = null;
+        for (int i = 0; i < n; i++) {
+            FrameLayout seg = new FrameLayout(this);
+            GradientDrawable track = new GradientDrawable();
+            track.setCornerRadius(2 * density);
+            track.setColor(i < shelfIndex ? 0xD9FFFFFF : 0x40FFFFFF);
+            seg.setBackground(track);
+            if (i == shelfIndex) {
+                View fill = new View(this);
+                fill.setBackgroundColor(0xFFFFFFFF);
+                fill.setPivotX(0f);
+                fill.setScaleX(0f);
+                seg.addView(fill, new FrameLayout.LayoutParams(w, ViewGroup.LayoutParams.MATCH_PARENT));
+                running = fill;
+            }
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(w, ViewGroup.LayoutParams.MATCH_PARENT);
+            lp.setMarginEnd(gap);
+            seg.setClipToOutline(true);
+            heroSegs.addView(seg, lp);
+        }
+        heroSegs.setVisibility(View.VISIBLE);
+        if (running != null) {
+            View fill = running;
+            if (!animations) {
+                fill.setScaleX(1f);
+                return;
+            }
+            segRun = android.animation.ValueAnimator.ofFloat(0f, 1f);
+            segRun.setDuration(SHELF_ROTATE_MS);
+            segRun.setInterpolator(new android.view.animation.LinearInterpolator());
+            segRun.addUpdateListener(a -> fill.setScaleX((float) a.getAnimatedValue()));
+            segRun.start();
+        }
+    }
+
+    /** Back to the plain shelf for an app with nothing to show: its name in light type, "Last opened", the dots. */
+    private void appShelfLook() {
+        if (heroLogo != null) heroLogo.setVisibility(View.GONE);
+        if (heroChips != null) heroChips.setVisibility(View.GONE);
+        if (heroProgress != null) heroProgress.setVisibility(View.GONE);
+        if (heroPlot != null) heroPlot.setVisibility(View.GONE);
+        if (heroSegs != null) heroSegs.setVisibility(View.GONE);
+        if (segRun != null) segRun.cancel();
+        heroName.setVisibility(View.VISIBLE);
+        heroName.setTypeface(getResources().getFont(R.font.outfit_light));
+        heroName.setAllCaps(false);
+        heroName.setLetterSpacing(-0.025f);
+        heroName.setTextSize(TypedValue.COMPLEX_UNIT_SP, 68f);
+        heroMeta.setTypeface(getResources().getFont(R.font.outfit_light));
+        heroMeta.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f);
+        heroMeta.setLetterSpacing(0f);
+        heroMeta.setTextColor(0xB3FFFFFF);
+    }
+
+    /** The lowest the shelf's top may go: just under the clock row, so a tall title never runs into it. */
+    private float heroMinY() {
+        View top = findViewById(R.id.leftBlock);
+        if (top == null || top.getHeight() == 0) return 0f;
+        Rect r = new Rect(0, 0, top.getWidth(), top.getHeight());
+        root.offsetDescendantRectToMyCoords(top, r);
+        return r.bottom + 10 * density;
+    }
+
+    /** Re-anchors the shelf above the dock after its height changed; drops the plot when even that does not fit. */
+    private void placeHero() {
+        if (lastDockTop < 0 || !heroShown) return;
+        float y = lastDockTop - 40 * density - hero.getHeight();
+        float min = heroMinY();
+        if (y < min && heroPlot != null && heroPlot.getVisibility() == View.VISIBLE) {
+            heroPlot.setVisibility(View.GONE);   // the layout change calls back here with the shorter shelf
+            return;
+        }
+        hero.setY(Math.max(y, min));
+    }
+
+    /** Bologna now, from the Casa add-on; hidden when Casa is missing or has no reading yet. */
+    private void updateWeather() {
+        weatherMinutes = 0;
+        View box = findViewById(R.id.weather);
+        if (box == null) return;
+        Context app = getApplicationContext();
+        shelfIo.execute(() -> {
+            String[] w = ContentShelf.weather(app);
+            handler.post(() -> {
+                if (isDestroyed()) return;
+                if (w == null || w[1] == null) {
+                    box.setVisibility(View.GONE);
+                    return;
+                }
+                ((ImageView) findViewById(R.id.wxIcon)).setImageResource(weatherIcon(w[5]));
+                ((TextView) findViewById(R.id.wxTemp)).setText(w[1] + "°");
+                ((TextView) findViewById(R.id.wxCity)).setText(w[0]);
+                ((TextView) findViewById(R.id.wxDesc)).setText(
+                        (w[4] == null || w[4].isEmpty() ? "" : w[4] + "  ·  ") + "↑" + w[2] + "°  ↓" + w[3] + "°");
+                TextView air = findViewById(R.id.wxAir);
+                if (w[6] != null) {
+                    int aqi = 0;
+                    try {
+                        aqi = Integer.parseInt(w[7]);
+                    } catch (NumberFormatException ignored) {
+                    }
+                    air.setText(w[6] + "  ·  AQI " + aqi);
+                    GradientDrawable bg = new GradientDrawable();
+                    bg.setCornerRadius(3 * density);
+                    int tone = aqi <= 40 ? 0xFF50C878 : aqi <= 60 ? 0xFFF2C94C : 0xFFF2994A;
+                    bg.setColor((tone & 0x00FFFFFF) | 0x2E000000);
+                    air.setBackground(bg);
+                    air.setTextColor(tone);
+                    air.setVisibility(View.VISIBLE);
+                } else {
+                    air.setVisibility(View.GONE);
+                }
+                box.setVisibility(View.VISIBLE);
+            });
+        });
+    }
+
+    private static int weatherIcon(String name) {
+        if (name == null) return R.drawable.wx_cloud;
+        switch (name) {
+            case "sun": return R.drawable.wx_sun;
+            case "moon": return R.drawable.wx_moon;
+            case "partly": return R.drawable.wx_partly;
+            case "fog": return R.drawable.wx_fog;
+            case "rain": return R.drawable.wx_rain;
+            case "snow": return R.drawable.wx_snow;
+            case "storm": return R.drawable.wx_storm;
+            default: return R.drawable.wx_cloud;
+        }
     }
 
     private void stopShelf() {
@@ -1702,6 +1939,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         shelfLabel = null;
         shelfItems = null;
         shelfShown = null;
+        shelfLogo = null;
+        if (segRun != null) segRun.cancel();
         if (wasShown) {
             heroArt.animate().cancel();
             heroArt.setScaleX(1f);

@@ -60,6 +60,42 @@ final class Tmdb {
         return best == null || best.isEmpty() || "null".equals(best) ? null : best;
     }
 
+    /** The title's logo (transparent PNG, the Netflix / Apple TV look): Italian, then English, then language-free. */
+    static String logo(JSONObject d) {
+        JSONArray l = d.optJSONObject("images") != null ? d.optJSONObject("images").optJSONArray("logos") : null;
+        if (l == null) return null;
+        for (String lang : new String[]{"it", "en", null}) {
+            String best = null;
+            double score = -1;
+            for (int i = 0; i < l.length(); i++) {
+                JSONObject x = l.optJSONObject(i);
+                if (x == null) continue;
+                boolean match = lang == null ? x.isNull("iso_639_1") : lang.equals(x.optString("iso_639_1"));
+                String path = x.optString("file_path", "");
+                // SVG logos would need a renderer the TV does not have; PNG only.
+                if (!match || !path.endsWith(".png")) continue;
+                double v = x.optDouble("vote_average", 0) + x.optInt("vote_count", 0) / 1000.0;
+                if (v > score) {
+                    score = v;
+                    best = path;
+                }
+            }
+            if (best != null) return best;
+        }
+        return null;
+    }
+
+    /** The plot cut at a sentence or word boundary near max characters (the shelf shows two lines). */
+    static String shortPlot(String overview, int max) {
+        if (overview == null) return "";
+        String s = overview.trim().replaceAll("\\s+", " ");
+        if (s.length() <= max) return s;
+        int cut = s.lastIndexOf(". ", max);
+        if (cut > max / 2) return s.substring(0, cut + 1);
+        cut = s.lastIndexOf(' ', max);
+        return (cut > 0 ? s.substring(0, cut) : s.substring(0, max)) + "…";
+    }
+
     /** YouTube key of the trailer: Italian first, then English; teasers only when there is no trailer. */
     static String trailer(JSONObject d) {
         JSONArray v = d.optJSONObject("videos") != null ? d.optJSONObject("videos").optJSONArray("results") : null;

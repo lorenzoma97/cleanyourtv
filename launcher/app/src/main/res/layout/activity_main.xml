@@ -112,6 +112,17 @@
         android:orientation="vertical"
         android:alpha="0">
 
+        <!-- Fork lorenzoma97, content shelf: the title's logo (TMDB, transparent PNG); heroName shows when there is none. -->
+        <ImageView
+            android:id="@+id/heroLogo"
+            android:layout_width="wrap_content"
+            android:layout_height="64dp"
+            android:maxWidth="460dp"
+            android:adjustViewBounds="true"
+            android:scaleType="fitStart"
+            android:importantForAccessibility="no"
+            android:visibility="gone" />
+
         <TextView
             android:id="@+id/heroName"
             android:layout_width="wrap_content"
@@ -122,6 +133,48 @@
             android:letterSpacing="-0.02"
             android:includeFontPadding="false"
             android:singleLine="true" />
+
+        <!-- Fork lorenzoma97, content shelf: badges (TOP 10, Nuova stagione, servizio), the resume bar and two lines of plot. -->
+        <LinearLayout
+            android:id="@+id/heroChips"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="2dp"
+            android:layout_marginTop="14dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:visibility="gone" />
+
+        <FrameLayout
+            android:id="@+id/heroProgress"
+            android:layout_width="220dp"
+            android:layout_height="3dp"
+            android:layout_marginStart="2dp"
+            android:layout_marginTop="12dp"
+            android:background="#38FFFFFF"
+            android:visibility="gone">
+
+            <View
+                android:id="@+id/heroProgressFill"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:background="#FFFFFFFF" />
+        </FrameLayout>
+
+        <TextView
+            android:id="@+id/heroPlot"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="2dp"
+            android:layout_marginTop="12dp"
+            android:maxWidth="560dp"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:lineSpacingMultiplier="1.2"
+            android:textColor="#D1FFFFFF"
+            android:textSize="15sp"
+            android:fontFamily="@font/outfit_light"
+            android:visibility="gone" />
 
         <!-- Cinematic shelf only: when the app was last opened, and the dock position dots. -->
         <TextView
@@ -141,6 +194,16 @@
             android:layout_width="wrap_content"
             android:layout_height="6dp"
             android:layout_marginStart="4dp"
+            android:layout_marginTop="16dp"
+            android:orientation="horizontal"
+            android:visibility="gone" />
+
+        <!-- Fork lorenzoma97, content shelf: one thin segment per title, the current one filling up in 8 s. -->
+        <LinearLayout
+            android:id="@+id/heroSegs"
+            android:layout_width="wrap_content"
+            android:layout_height="3dp"
+            android:layout_marginStart="2dp"
             android:layout_marginTop="16dp"
             android:orientation="horizontal"
             android:visibility="gone" />
@@ -304,6 +367,77 @@
                 android:clipChildren="false"
                 android:clipToPadding="false"
                 android:orientation="horizontal">
+
+                <!-- Fork lorenzoma97: Bologna now, from the Casa add-on (Open-Meteo); in place of the Wi-Fi pill. -->
+                <LinearLayout
+                    android:id="@+id/weather"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_vertical"
+                    android:layout_marginEnd="20dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:focusable="false"
+                    android:visibility="gone">
+
+                    <ImageView
+                        android:id="@+id/wxIcon"
+                        android:layout_width="38dp"
+                        android:layout_height="38dp"
+                        android:importantForAccessibility="no" />
+
+                    <TextView
+                        android:id="@+id/wxTemp"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="10dp"
+                        android:includeFontPadding="false"
+                        android:textColor="#FFFFFFFF"
+                        android:textSize="38sp"
+                        android:fontFamily="@font/outfit_extralight" />
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/wxCity"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textAllCaps="true"
+                            android:letterSpacing="0.16"
+                            android:textColor="#99FFFFFF"
+                            android:textSize="10sp"
+                            android:fontFamily="monospace" />
+
+                        <TextView
+                            android:id="@+id/wxDesc"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="1dp"
+                            android:singleLine="true"
+                            android:textColor="#D9FFFFFF"
+                            android:textSize="14sp"
+                            android:fontFamily="@font/outfit_light" />
+
+                        <TextView
+                            android:id="@+id/wxAir"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:paddingStart="6dp"
+                            android:paddingEnd="6dp"
+                            android:paddingTop="1dp"
+                            android:paddingBottom="1dp"
+                            android:textAllCaps="true"
+                            android:letterSpacing="0.06"
+                            android:textSize="9sp"
+                            android:fontFamily="monospace"
+                            android:visibility="gone" />
+                    </LinearLayout>
+                </LinearLayout>
 
                 <TextView
                     android:id="@+id/btnInputs"
