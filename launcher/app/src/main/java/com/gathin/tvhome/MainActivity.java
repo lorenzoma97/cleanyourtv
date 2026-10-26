@@ -338,6 +338,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         density = getResources().getDisplayMetrics().density;
         // config.xml, overlaid by config.json from a pushed theme (see Config and tools/theme.sh).
         Config cfg = Config.load(this);
+        if (cfg.safeMode) Toast.makeText(this, R.string.safe_mode, Toast.LENGTH_LONG).show();
+        else ContentProbe.startOnce(this);   // fork: what the apps publish for Watch Next / guide (logcat TvHomeProbe)
         applyViewInputsHandler(cfg.handleViewInputs);
         settingsKeycodes = cfg.settingsKeycodes;
         settingsKeyPanel = cfg.settingsKeyPanel;

@@ -287,4 +287,8 @@
          colour washes down from the top edge and fades to black, brightest along the top). The cinematic shelf
          keeps its own glow. Can also be set with "glow_style": "horizon" in a theme's config.json. -->
     <string name="glow_style" translatable="false">radial</string>
+
+    <!-- Crash watchdog: after three crashes in five minutes the next start skips config.json and the wallpaper
+         (safe mode, docs/WATCHDOG.md). On in this fork: the content features below are new code on a family TV. -->
+    <bool name="crash_watchdog">true</bool>
 </resources>
