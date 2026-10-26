@@ -23,6 +23,8 @@
     <!-- Android 11+ package visibility: lets the launcher list the TV apps it shows as tiles, and the
          apps that declare a module card (docs/specs/card.md). -->
     <queries>
+        <!-- Fork lorenzoma97: the Casa add-on serves the top shelf's titles and pictures (ContentShelf). -->
+        <package android:name="it.lorenzoma97.casa" />
         <!-- The standard settings handlers, so package visibility doesn't hide them and send the pills to a vendor fallback by mistake. -->
         <intent>
             <action android:name="android.settings.SETTINGS" />

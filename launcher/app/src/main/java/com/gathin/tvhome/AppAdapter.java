@@ -57,6 +57,11 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         void onLibraryRequested();
         void onLibraryFocused();
         void onLibraryUp();
+
+        /** Fork lorenzoma97: holding OK on an app tile; true when the home screen handled it (content shelf). */
+        default boolean onTileLongPressed(String pkg) {
+            return false;
+        }
     }
 
     static final class Entry {
@@ -442,6 +447,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         }
         h.card.setOnClickListener(v -> launch(e));
         h.card.setOnLongClickListener(v -> {
+            if (listener != null && listener.onTileLongPressed(e.pkg)) return true;
             Intent i = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + e.pkg));
             i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             try {

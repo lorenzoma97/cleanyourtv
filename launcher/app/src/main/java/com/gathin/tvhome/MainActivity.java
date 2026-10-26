@@ -923,6 +923,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         stopAmbientAnimation();
         hero.animate().cancel();
         ambient.animate().cancel();
+        stopShelf();
         heroArt.animate().cancel();
         handler.removeCallbacks(minuteTick);
         stopStats();
@@ -964,6 +965,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         grid.getRecycledViewPool().clear();
         heroArtCache.clear();
         heroArtKey = null;
+        shelfCache.clear();
         tileRefresh.invalidate();
     }
 
@@ -980,6 +982,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     protected void onDestroy() {
         super.onDestroy();
         unregisterReceiver(packageReceiver);
+        handler.removeCallbacks(shelfTick);
+        shelfIo.shutdownNow();
         wallpaperPlayer.close();
         ConnectivityManager cm = getSystemService(ConnectivityManager.class);
         TvInputManager tim = (TvInputManager) getSystemService(TV_INPUT_SERVICE);
@@ -1420,8 +1424,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         String label = adapter.labelAt(position);
         int color = adapter.ambientColorAt(position);
         float y = dockTopInRoot - 14 * density - 26 * density - hero.getHeight();
-        boolean changed = !label.contentEquals(heroName.getText());
-        if (cinematic) showHeroArt(position);
+        // Fork: while a content shelf title is on screen for this app, it (not the app name) is what the shelf shows.
+        boolean onShelf = shelfShown != null && java.util.Objects.equals(adapter.packageAt(position), shelfPkg);
+        boolean changed = !(onShelf ? shelfShown.title : label).contentEquals(heroName.getText());
+        if (cinematic && !onShelf) showHeroArt(position);
+        if (cinematic) startShelf(position);
 
         if (!animations || reducedMotion) {
             // Snap the shelf instead of sliding and fading it: each of those frames repaints the
@@ -1476,6 +1483,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     /** The shelf's text for this dock app: its name and, on the cinematic shelf, "Last opened" and the dots. */
     private void fillHero(int position, String label) {
+        if (cinematic && shelfShown != null && java.util.Objects.equals(adapter.packageAt(position), shelfPkg)) {
+            showShelfText(shelfShown);
+            updateHeroDots(position);
+            return;
+        }
+        if (cinematic) heroName.setTextSize(TypedValue.COMPLEX_UNIT_SP, 68f);
         heroName.setText(label);
         if (!cinematic) return;
         updateHeroMeta(position);
@@ -1550,6 +1563,164 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private void fadeHeroArt(int ms) {
         if (!animations) heroArt.setAlpha(HERO_ART_ALPHA);
         else heroArt.animate().alpha(HERO_ART_ALPHA).setDuration(reducedMotion ? Math.min(ms, Motion.REDUCED_MS) : ms).start();
+    }
+
+    // ---- content shelf (fork lorenzoma97) ------------------------------------------------------------
+    // On the cinematic shelf a dock app shows what is in it, Apple TV Top Shelf style: "Riprendi" from Watch Next,
+    // then the Casa add-on's Top 10 / Novita. One full-screen picture at a time, a slow push-in, a crossfade every
+    // SHELF_ROTATE_MS. OK still opens the app; holding OK opens the title on screen. Nothing to show: the app's art.
+
+    private static final long SHELF_ROTATE_MS = 8000;
+    private static final long SHELF_CACHE_MS = 10 * 60_000L;
+    private static final float SHELF_ART_ALPHA = 0.92f;
+    private static final float SHELF_PUSH_IN = 1.06f;
+    private final java.util.concurrent.ExecutorService shelfIo = java.util.concurrent.Executors.newSingleThreadExecutor();
+    private final Map<String, List<ContentShelf.Item>> shelfCache = new HashMap<>();
+    private final Map<String, Long> shelfLoadedAt = new HashMap<>();
+    private final Runnable shelfTick = this::nextShelfItem;
+    /** The dock app the shelf is rotating for, its items, and the one on screen (null: the app's own art). */
+    private String shelfPkg, shelfLabel;
+    private List<ContentShelf.Item> shelfItems;
+    private ContentShelf.Item shelfShown;
+    private int shelfIndex, shelfToken, shelfFailures;
+
+    private void startShelf(int position) {
+        String pkg = adapter.packageAt(position);
+        if (pkg != null && pkg.equals(shelfPkg)) return;   // same app, focus re-sent: keep rotating
+        stopShelf();
+        if (pkg == null) return;
+        shelfPkg = pkg;
+        shelfLabel = adapter.labelAt(position);
+        int token = ++shelfToken;
+        List<ContentShelf.Item> cached = shelfCache.get(pkg);
+        Long at = shelfLoadedAt.get(pkg);
+        if (cached != null && at != null && SystemClock.elapsedRealtime() - at < SHELF_CACHE_MS) {
+            beginShelf(token, cached);
+            return;
+        }
+        Context app = getApplicationContext();
+        shelfIo.execute(() -> {
+            List<ContentShelf.Item> items;
+            try {
+                items = ContentShelf.load(app, pkg);
+            } catch (Exception | LinkageError e) {
+                items = Collections.emptyList();   // never let the shelf take Home down
+            }
+            List<ContentShelf.Item> found = items;
+            handler.post(() -> {
+                shelfCache.put(pkg, found);
+                shelfLoadedAt.put(pkg, SystemClock.elapsedRealtime());
+                if (token == shelfToken) beginShelf(token, found);
+            });
+        });
+    }
+
+    private void beginShelf(int token, List<ContentShelf.Item> items) {
+        if (token != shelfToken || items.isEmpty()) return;
+        shelfItems = items;
+        shelfIndex = -1;
+        shelfFailures = 0;
+        nextShelfItem();
+    }
+
+    /** Loads the next picture off the main thread, then crossfades to it. */
+    private void nextShelfItem() {
+        List<ContentShelf.Item> items = shelfItems;
+        if (items == null || items.isEmpty() || isDestroyed()) return;
+        shelfIndex = (shelfIndex + 1) % items.size();
+        ContentShelf.Item item = items.get(shelfIndex);
+        int token = shelfToken;
+        int width = Math.max(960, Math.min(1280, getResources().getDisplayMetrics().widthPixels));
+        Context app = getApplicationContext();
+        shelfIo.execute(() -> {
+            Bitmap bmp = ContentShelf.decode(app, item.image, width);
+            handler.post(() -> {
+                if (token != shelfToken || isDestroyed()) return;
+                if (bmp == null) {
+                    // A picture that will not load is skipped; if none load, the app's own art stays.
+                    if (++shelfFailures < items.size()) nextShelfItem();
+                    return;
+                }
+                shelfFailures = 0;
+                applyShelfItem(item, bmp);
+                if (items.size() > 1) {
+                    handler.removeCallbacks(shelfTick);
+                    handler.postDelayed(shelfTick, SHELF_ROTATE_MS);
+                }
+            });
+        });
+    }
+
+    private void applyShelfItem(ContentShelf.Item item, Bitmap bmp) {
+        boolean first = shelfShown == null;
+        shelfShown = item;
+        heroArtKey = "shelf:" + shelfPkg + ":" + shelfIndex;   // showHeroArt puts the app's art back when focus moves
+        heroArt.animate().cancel();
+        if (!animations) {
+            heroArt.setImageBitmap(bmp);
+            heroArt.setAlpha(SHELF_ART_ALPHA);
+            showShelfText(item);
+            return;
+        }
+        heroArt.animate().alpha(0f).setDuration(first ? 200 : 320).withEndAction(() -> {
+            heroArt.setImageBitmap(bmp);
+            heroArt.setScaleX(1f);
+            heroArt.setScaleY(1f);
+            heroArt.animate().alpha(SHELF_ART_ALPHA).setDuration(700).withEndAction(() ->
+                    heroArt.animate().scaleX(SHELF_PUSH_IN).scaleY(SHELF_PUSH_IN).setDuration(SHELF_ROTATE_MS + 1500)
+                            .setInterpolator(new android.view.animation.LinearInterpolator()).start()).start();
+        }).start();
+        if (!heroShown) {
+            showShelfText(item);
+            return;
+        }
+        hero.animate().cancel();
+        hero.animate().alpha(0f).setDuration(160).withEndAction(() -> {
+            if (shelfShown != item) return;
+            showShelfText(item);
+            hero.animate().alpha(1f).setDuration(260).start();
+        }).start();
+    }
+
+    /** Title big; "Netflix · Top 10 in Italia · n. 1 · tieni premuto OK" under it. */
+    private void showShelfText(ContentShelf.Item item) {
+        heroName.setTextSize(TypedValue.COMPLEX_UNIT_SP, 56f);
+        heroName.setText(item.title);
+        StringBuilder line = new StringBuilder();
+        if (shelfLabel != null) line.append(shelfLabel);
+        if (item.line != null && !item.line.isEmpty()) line.append(line.length() > 0 ? "  ·  " : "").append(item.line);
+        if (item.action != null) line.append("  ·  tieni premuto OK");
+        heroMeta.setText(line);
+        heroMeta.setVisibility(View.VISIBLE);
+    }
+
+    private void stopShelf() {
+        handler.removeCallbacks(shelfTick);
+        shelfToken++;
+        boolean wasShown = shelfShown != null;
+        shelfPkg = null;
+        shelfLabel = null;
+        shelfItems = null;
+        shelfShown = null;
+        if (wasShown) {
+            heroArt.animate().cancel();
+            heroArt.setScaleX(1f);
+            heroArt.setScaleY(1f);
+            heroArtKey = null;
+        }
+    }
+
+    /** Holding OK on a dock app opens the title its shelf is showing; false lets the tile do its usual long press. */
+    @Override
+    public boolean onTileLongPressed(String pkg) {
+        ContentShelf.Item item = shelfShown;
+        if (item == null || item.action == null || pkg == null || !pkg.equals(shelfPkg)) return false;
+        try {
+            startActivity(item.action);
+            return true;
+        } catch (ActivityNotFoundException | SecurityException e) {
+            return false;
+        }
     }
 
     /** "Last opened yesterday, 9:40 PM", the time in white; nothing (but the same height) when it was never seen. */
@@ -1680,6 +1851,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
      */
     private void showGlowOnly(int position) {
         int color = adapter.ambientColorAt(position);
+        stopShelf();
         stopAmbientAnimation();
         hero.animate().cancel();
         ambient.animate().cancel();
