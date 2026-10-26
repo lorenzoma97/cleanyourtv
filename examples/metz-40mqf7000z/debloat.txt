@@ -1,0 +1,53 @@
+# Metz 40MQF7000Z (40" QLED FHD, Italy) = Skyworth OEM SWTV-24AE-FHD, device beomil, product SW11_TG
+# MediaTek mt5867, 1 GB RAM (MemTotal 952692 kB), /data 4 GB. Google TV 14 (API 34),
+# build UKN6.260116.048, security patch 2026-04-01. Same device as examples/motorola-swtv-24ae-fhd.
+# Stock launcher: com.google.android.apps.tv.launcherx (priority 2).
+# Setup wizard: com.google.android.tungsten.setupwraith (RecoveryActivity claims HOME, priority 1).
+# Live TV app: com.cltv.hybrid (iWedia CanaliTV, TIS AnokiTvInputService). Tuner/HDMI: com.mediatek.tvinput.
+# USB debugging opens port 5555 on this firmware (no Wireless debugging pairing needed).
+# No ACR client found (tools/privacy.py, 2026-10-23).
+#
+# Apply:   TV_HOST=<tv ip> tools/disable.sh examples/metz-40mqf7000z/debloat.txt
+# Undo:    TV_HOST=<tv ip> tools/restore.sh examples/metz-40mqf7000z/debloat.txt com.google.android.apps.tv.launcherx
+# Everything is DISABLED, not uninstalled.
+#
+# Kept on purpose: com.cltv.hybrid, com.mediatek.* (tvinput, tv.service, wwtv.tvcenter, wwtv.setupwizard),
+# com.smartdevice.global.service, com.smartdevice.dailyshortcut, com.smartdevice.factory,
+# com.google.android.tv.remote.service, com.google.android.tv.googletvremotepairer, com.google.android.inputmethod.latin,
+# org.liskovsoft.androidtv.rukeyboard, com.google.android.apps.mediashell (Cast), com.google.android.apps.tv.dreamx
+# (screensaver), com.google.android.tts, com.dolby.android.audio.service, com.tianci.localmedia (USB player),
+# com.google.android.tv.inputplayer, com.google.android.youtube.tv, com.netflix.ninja, com.netflix.tokenmanager,
+# all overlays.
+# Already disabled at the factory (not listed, so restore leaves it off): com.mediatek.wwtv.tvcenter.plus
+
+# Skyworth telemetry and activation
+com.smartdevice.recordactivation             # records first activation
+com.smartdevice.aftersale                    # "after-sale" service: boot + network receivers, can install APKs
+# Google / Android telemetry, ads and personalisation
+com.google.android.feedback
+com.android.tv.feedbackconsent
+com.android.adservices.api
+com.android.ondevicepersonalization.services
+com.android.federatedcompute.services
+# Skyworth content and recommendations
+com.smartdevice.recommendation               # Coocaa recommendation rows and analytics
+com.smartdevice.leanbacklauncher.customizer  # partner config that injects rows into the home screen
+# Bloatware / cleaners / manuals / demo / unused
+com.Smartdevice.emanual                      # on-screen manual
+fusion.android.tv.demo                       # retail store demo (com.smartdevice.store.assistant)
+com.smartdevice.dailymanage                  # TV Guard / cleaner
+com.smartdevice.myapp                        # Daily Key / app manager
+com.android.healthconnect.controller
+com.android.health.connect.backuprestore
+com.google.android.play.games                # Google Play Games
+# Unused preinstalled apps (owner's choice; Chromecast stays)
+com.google.android.youtube.tvmusic           # YouTube Music
+com.smartdevice.dtv.icast                    # Coocaa iCast screen mirroring
+# Voice assistant (owner's choice): the remote's mic button and voice search go dead
+com.google.android.katniss
+
+# Stock Google TV home and setup wizard: phase B, only after the new launcher is installed and verified,
+# and after the Wi-Fi network has been forgotten and re-joined (it was owned by setupwraith on this TV;
+# re-joined 2026-10-23, now android.uid.system).
+com.google.android.tungsten.setupwraith      # setup wizard recovery activity claiming HOME
+com.google.android.apps.tv.launcherx         # stock Google TV launcher (replaced by com.gathin.tvhome 2026-10-23)

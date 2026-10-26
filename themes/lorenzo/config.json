@@ -1,0 +1,19 @@
+{
+  "dock_apps": [
+    "com.netflix.ninja",
+    "com.amazon.amazonvideo.livingroom",
+    "com.google.android.youtube.tv",
+    "com.dazn",
+    "com.nowtv.it",
+    "it.rainet.androidtv",
+    "com.cltv.hybrid"
+  ],
+  "hidden_apps": ["org.liskovsoft.androidtv.rukeyboard", "com.android.tv.settings"],
+  "columns": 7,
+  "rows_below_dock": 1,
+  "show_inputs_pill": false,
+  "reduced_motion": true,
+  "boot_to_live_tv": false,
+  "background_color": "#000000",
+  "wallpaper": false
+}
