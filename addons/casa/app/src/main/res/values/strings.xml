@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Casa</string>
+    <string name="pick_genre">Che genere stasera?</string>
+    <string name="all_genres">Tutte</string>
+    <string name="watch">Guarda</string>
+    <string name="seen">Già vista</string>
+    <string name="another">Un\'altra</string>
+    <string name="trailer_hint">Tieni premuto Guarda per il trailer</string>
+    <string name="loading">Un attimo…</string>
+    <string name="no_data">Nessun dato ancora: controlla la rete, oppure la chiave TMDB in Android/data/it.lorenzoma97.casa/files/tmdb.txt</string>
+    <string name="all_seen">Le hai viste tutte! Scegli un altro genere.</string>
+    <string name="no_app">App non installata: %1$s</string>
+    <string name="no_trailer">Trailer non disponibile</string>
+    <string name="credits">Dati e immagini: TMDB. Questo prodotto usa l\'API TMDB ma non è approvato né certificato da TMDB. Disponibilità: JustWatch. Classifica: IMDb (uso personale).</string>
+</resources>

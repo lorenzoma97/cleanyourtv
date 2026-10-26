@@ -10,7 +10,7 @@ if [ "${APK_LOCAL:-0}" != 1 ]; then
   mkdir -p app/build/outputs/apk/release
   # --ssl-no-revoke: the office network's TLS inspection breaks Windows' revocation check on GitHub's asset host.
   curl -sSL --ssl-no-revoke -o app/build/outputs/apk/release/app-release.apk "$REL/tvhome-release.apk"
-  WANT=$(curl -sSL --ssl-no-revoke "$REL/SHA256SUMS" | awk '{print $1}')
+  WANT=$(curl -sSL --ssl-no-revoke "$REL/SHA256SUMS" | awk '$2 == "tvhome-release.apk" {print $1}')
   GOT=$(sha256sum app/build/outputs/apk/release/app-release.apk | awk '{print $1}')
   [ -n "$WANT" ] && [ "$WANT" = "$GOT" ] || { echo "ERROR: APK checksum mismatch ($GOT vs $WANT)" >&2; exit 1; }
   echo "APK apk-latest ok ($GOT)"

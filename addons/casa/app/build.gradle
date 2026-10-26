@@ -1,0 +1,37 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'it.lorenzoma97.casa'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'it.lorenzoma97.casa'
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // Re-signed with the fork's fixed key by .github/workflows/build-apk.yml.
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+    // org.json comes with Android; the JVM tests need a real implementation of it.
+    testImplementation 'org.json:json:20240303'
+}

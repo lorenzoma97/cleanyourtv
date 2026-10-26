@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 16:9 tile art: a dark amber gradient with a die (random pick) and a play mark. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <path android:pathData="M0,0h320v180h-320z">
+        <aapt:attr xmlns:aapt="http://schemas.android.com/aapt" name="android:fillColor">
+            <gradient android:type="linear" android:startX="0" android:startY="0" android:endX="320" android:endY="180"
+                android:startColor="#FF3A2200" android:endColor="#FF0E0A04" />
+        </aapt:attr>
+    </path>
+    <path android:fillColor="#FFE5A00D" android:pathData="M120,50h80a12,12 0,0 1,12 12v56a12,12 0,0 1,-12 12h-80a12,12 0,0 1,-12 -12v-56a12,12 0,0 1,12 -12z" />
+    <path android:fillColor="#FF1A1205" android:pathData="M150,72l28,18l-28,18z" />
+    <path android:fillColor="#FF1A1205" android:pathData="M126,62a5,5 0,1 1,10 0a5,5 0,1 1,-10 0z M184,118a5,5 0,1 1,10 0a5,5 0,1 1,-10 0z" />
+</vector>

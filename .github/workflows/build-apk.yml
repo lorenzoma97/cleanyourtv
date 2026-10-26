@@ -44,24 +44,33 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew --no-daemon testReleaseUnitTest assembleRelease
+      - name: Build Casa add-on
+        working-directory: addons/casa
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon testReleaseUnitTest assembleRelease
       # Gradle signs with whatever debug key the runner has; re-sign explicitly so the key never depends on it.
-      - name: Sign and check signature
+      - name: Sign and check signatures
         run: |
           signer="$ANDROID_HOME/build-tools/34.0.0/apksigner"
-          "$signer" sign --ks "$RUNNER_TEMP/tvhome.p12" --ks-type PKCS12 --ks-key-alias androiddebugkey \
-            --ks-pass pass:android --key-pass pass:android \
-            --out tvhome-release.apk launcher/app/build/outputs/apk/release/app-release.apk
+          sign() {
+            "$signer" sign --ks "$RUNNER_TEMP/tvhome.p12" --ks-type PKCS12 --ks-key-alias androiddebugkey \
+              --ks-pass pass:android --key-pass pass:android --out "$2" "$1"
+            "$signer" verify --print-certs "$2" | tee -a cert.txt
+            "$signer" verify --print-certs "$2" | grep -qi "SHA-256 digest: $EXPECTED_CERT_SHA256" \
+              || { echo "$2 not signed with the fixed key"; exit 1; }
+            echo "$2: $(( $(stat -c %s "$2") / 1024 )) KB"
+          }
+          sign launcher/app/build/outputs/apk/release/app-release.apk tvhome-release.apk
+          sign addons/casa/app/build/outputs/apk/release/app-release.apk casa-release.apk
           rm -f "$RUNNER_TEMP/tvhome.p12"
-          "$signer" verify --print-certs tvhome-release.apk | tee cert.txt
-          grep -qi "SHA-256 digest: $EXPECTED_CERT_SHA256" cert.txt || { echo "APK not signed with the fixed key"; exit 1; }
-          sha256sum tvhome-release.apk > SHA256SUMS
-          echo "release APK: $(( $(stat -c %s tvhome-release.apk) / 1024 )) KB"
+          sha256sum tvhome-release.apk casa-release.apk > SHA256SUMS
       - name: Publish rolling prerelease
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete apk-latest --yes --cleanup-tag || true
-          gh release create apk-latest tvhome-release.apk SHA256SUMS cert.txt \
+          gh release create apk-latest tvhome-release.apk casa-release.apk SHA256SUMS cert.txt \
             --target "$GITHUB_SHA" --prerelease \
             --title "APK latest (${GITHUB_SHA::7})" \
             --notes "Build ${GITHUB_RUN_NUMBER} from ${GITHUB_SHA}"
