@@ -365,6 +365,16 @@ public class SerieActivity extends Activity {
                 // Netflix without the title link: open the app instead
             }
         }
+        JSONObject d = details.get(picks.get(slot));
+        String search = "prime".equals(svc) && d != null ? Shelf.primeSearchIntent(d.optString("name")) : null;
+        if (search != null) {
+            try {
+                startActivity(Intent.parseUri(search, Intent.URI_INTENT_SCHEME));
+                return;
+            } catch (ActivityNotFoundException | java.net.URISyntaxException ignored) {
+                // Prime without its search link: open the app instead
+            }
+        }
         Intent launch = getPackageManager().getLeanbackLaunchIntentForPackage(pkg);
         if (launch == null) launch = getPackageManager().getLaunchIntentForPackage(pkg);
         if (launch == null) {

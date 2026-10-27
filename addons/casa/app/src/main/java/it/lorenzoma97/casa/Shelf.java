@@ -85,6 +85,26 @@ final class Shelf {
                 + "#Intent;scheme=https;action=android.intent.action.VIEW;package=com.netflix.ninja;launchFlags=0x10008000;S.source=30;end";
     }
 
+    static final String PRIME_PKG = "com.amazon.amazonvideo.livingroom";
+    static final String PRIME_CTA = "Cerca su Prime Video";
+
+    /**
+     * Prime Video's search for the title: the series comes first in the results. A title link needs Prime's own IDs,
+     * which are not public; Wikidata has a third of ours, US-store ones that opened Prime's Home in Italy (tested
+     * 2026-10-27). Prime may ask who is watching first; one OK and the search follows.
+     */
+    static String primeSearchIntent(String title) {
+        if (title == null || title.trim().isEmpty()) return null;
+        String phrase;
+        try {
+            phrase = java.net.URLEncoder.encode(title.trim(), "UTF-8").replace("+", "%20");
+        } catch (java.io.UnsupportedEncodingException e) {
+            return null;   // UTF-8 is always there
+        }
+        return "intent://app.primevideo.com/search?phrase=" + phrase
+                + "#Intent;scheme=https;action=android.intent.action.VIEW;package=" + PRIME_PKG + ";launchFlags=0x10008000;end";
+    }
+
     /** package -> ordered entries, capped, one per series. */
     static Map<String, List<Entry>> plan(JSONObject content) {
         Map<String, List<Entry>> out = new LinkedHashMap<>();
@@ -183,6 +203,10 @@ final class Shelf {
                         }
                     }
                     String action = netflixIntent(en.netflixId);
+                    if (action == null && PRIME_PKG.equals(e.getKey())) {
+                        action = primeSearchIntent(d.optString("name"));
+                        if (action != null) item.put("cta", PRIME_CTA);
+                    }
                     if (action != null) item.put("action", action);
                     items.put(item);
                 } catch (Exception ex) {

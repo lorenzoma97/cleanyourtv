@@ -25,7 +25,7 @@ import java.util.List;
  */
 public class HeroProvider extends ContentProvider {
     static final String AUTHORITY = "it.lorenzoma97.casa.hero";
-    private static final String[] COLUMNS = {"title", "line", "image", "action", "logo", "plot", "top", "tag", "season"};
+    private static final String[] COLUMNS = {"title", "line", "image", "action", "logo", "plot", "top", "tag", "season", "cta"};
     private static final String[] WEATHER = {"city", "temp", "max", "min", "desc", "icon", "air", "aqi"};
     private static final long URL_CACHE_BYTES = 15L * 1024 * 1024;
 
@@ -55,7 +55,8 @@ public class HeroProvider extends ContentProvider {
                 c.addRow(new Object[]{x.optString("title"), x.optString("line"),
                         "content://" + AUTHORITY + "/img/" + x.optString("image"), x.isNull("action") ? null : x.optString("action"),
                         logo, x.optString("plot"), x.optInt("top", 0),
-                        x.isNull("tag") ? null : x.optString("tag"), x.isNull("season") ? null : x.optString("season")});
+                        x.isNull("tag") ? null : x.optString("tag"), x.isNull("season") ? null : x.optString("season"),
+                        x.isNull("cta") ? null : x.optString("cta")});
             }
         } catch (Exception ignored) {
             // a broken shelf.json means an empty shelf, never a crash in the launcher's process

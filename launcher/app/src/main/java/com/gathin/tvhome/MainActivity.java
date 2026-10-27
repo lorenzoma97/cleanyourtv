@@ -2174,14 +2174,32 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         int w = Math.round(96 * density), h = Math.round(54 * density), pad = Math.round(2 * density);
         for (int i = 0; i < items.size(); i++) {
             int index = i;
-            ImageView card = new ImageView(this);
-            card.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            // The picture, and the title over a dark fade at its foot.
+            FrameLayout card = new FrameLayout(this);
             card.setBackgroundResource(R.drawable.hero_card);
             card.setPadding(pad, pad, pad, pad);
             card.setClipToOutline(true);
             card.setFocusable(true);
             card.setAlpha(0.55f);
-            card.setImageBitmap(cardThumbs.get(items.get(i)));
+            ImageView picture = new ImageView(this);
+            picture.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            picture.setImageBitmap(cardThumbs.get(items.get(i)));
+            card.addView(picture, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT));
+            TextView title = new TextView(this);
+            title.setText(items.get(i).title);
+            title.setTextColor(0xFFFFFFFF);
+            title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10.5f);
+            title.setTypeface(getResources().getFont(R.font.outfit_medium));
+            title.setMaxLines(2);
+            title.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            title.setLineSpacing(0f, 0.95f);
+            title.setPadding(Math.round(6 * density), Math.round(10 * density), Math.round(6 * density),
+                    Math.round(4 * density));
+            title.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                    new int[]{0x00000000, 0xD9000000}));
+            card.addView(title, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM));
             card.setOnKeyListener(cardKeys);
             card.setOnClickListener(v -> playShelfCard(index));
             card.setOnFocusChangeListener((v, focused) -> {
@@ -2213,7 +2231,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     if (isDestroyed() || items != shelfItems) return;
                     cardThumbs.put(item, thumb);
                     int i = items.indexOf(item);
-                    if (shelfDetail && i < heroCards.getChildCount()) ((ImageView) heroCards.getChildAt(i)).setImageBitmap(thumb);
+                    if (shelfDetail && i < heroCards.getChildCount())
+                        ((ImageView) ((ViewGroup) heroCards.getChildAt(i)).getChildAt(0)).setImageBitmap(thumb);
                 });
             }
         });
@@ -2249,7 +2268,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
      */
     private void showShelfButtons(ContentShelf.Item item) {
         boolean watch = item.action != null, big = shelfDetail;
-        heroWatch.setText(item.resume != null || item.progress >= 0 ? "▶  Riprendi" : "▶  Guarda il titolo");
+        heroWatch.setText("▶  " + (item.cta != null ? item.cta
+                : item.resume != null || item.progress >= 0 ? "Riprendi" : "Guarda il titolo"));
         heroWatch.setVisibility(watch ? View.VISIBLE : View.GONE);
         int h = (int) ((big ? 22 : 13) * density), v = (int) ((big ? 9 : 5) * density);
         heroWatch.setTextSize(TypedValue.COMPLEX_UNIT_SP, big ? 16f : 12f);

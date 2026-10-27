@@ -37,6 +37,8 @@ final class ContentShelf {
         /** The redesigned shelf: title logo (null: text), two lines of plot, badges, the resume point and progress. */
         Uri logo;
         String plot, tag, season, resume;
+        /** What the play button says when it is not "Guarda il titolo" (Prime: "Cerca su Prime Video"). */
+        String cta;
         int top;
         float progress = -1f;
         /** Came from Casa: a list without any is cached only briefly (Casa may still be on its first download). */
@@ -205,6 +207,7 @@ final class ContentShelf {
                 item.plot = column(c, "plot");
                 item.tag = column(c, "tag");
                 item.season = column(c, "season");
+                item.cta = column(c, "cta");
                 int top = c.getColumnIndex("top");
                 item.top = top >= 0 ? c.getInt(top) : 0;
                 item.fromCasa = true;

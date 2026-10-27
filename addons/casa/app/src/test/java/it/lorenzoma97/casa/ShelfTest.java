@@ -41,6 +41,18 @@ public class ShelfTest {
     }
 
     @Test
+    public void primeSearch() {
+        assertEquals("intent://app.primevideo.com/search?phrase=Gli%20anelli%20del%20potere#Intent;scheme=https;"
+                        + "action=android.intent.action.VIEW;package=com.amazon.amazonvideo.livingroom;launchFlags=0x10008000;end",
+                Shelf.primeSearchIntent(" Gli anelli del potere "));
+        // ; and # would end the intent URI early: they must arrive encoded
+        assertEquals("intent://app.primevideo.com/search?phrase=A%3BB%23C%26D#Intent;scheme=https;"
+                        + "action=android.intent.action.VIEW;package=com.amazon.amazonvideo.livingroom;launchFlags=0x10008000;end",
+                Shelf.primeSearchIntent("A;B#C&D"));
+        assertNull(Shelf.primeSearchIntent(" "));
+    }
+
+    @Test
     public void planDedupesAndCaps() throws Exception {
         StringBuilder top = new StringBuilder();
         for (int i = 1; i <= 10; i++) {
