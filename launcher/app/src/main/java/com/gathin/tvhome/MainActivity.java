@@ -1680,12 +1680,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         heroArtKey = "shelf:" + shelfPkg + ":" + shelfIndex;   // showHeroArt puts the app's art back when focus moves
         heroArt.animate().cancel();
         if (!animations) {
+            heroArt.setScaleType(ImageView.ScaleType.CENTER_CROP);
             heroArt.setImageBitmap(bmp);
             heroArt.setAlpha(SHELF_ART_ALPHA);
             showShelfText(item, logo);
             return;
         }
         heroArt.animate().alpha(0f).setDuration(first ? 200 : 320).withEndAction(() -> {
+            heroArt.setScaleType(ImageView.ScaleType.CENTER_CROP);   // real pictures are cropped, never stretched
             heroArt.setImageBitmap(bmp);
             heroArt.setScaleX(1f);
             heroArt.setScaleY(1f);
@@ -1945,6 +1947,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             heroArt.animate().cancel();
             heroArt.setScaleX(1f);
             heroArt.setScaleY(1f);
+            heroArt.setScaleType(ImageView.ScaleType.FIT_XY);   // the app's blurred art is meant to be stretched
             heroArtKey = null;
         }
     }

@@ -54,7 +54,50 @@ final class ContentShelf {
         List<Item> out = new ArrayList<>();
         if (pkg == null) return out;
         out.addAll(resume(ctx, pkg));
-        out.addAll(casa(ctx, pkg));
+        List<Item> casa = casa(ctx, pkg);
+        out.addAll(casa);
+        // Apps Casa has nothing for (YouTube, DAZN on this TV) still show what they publish themselves.
+        if (casa.isEmpty()) out.addAll(previews(ctx, pkg));
+        return out;
+    }
+
+    private static final int MAX_PREVIEWS = 6;
+
+    /** The app's own preview channel rows (the old Android TV home rows): title, picture, deep link, short text. */
+    private static List<Item> previews(Context ctx, String pkg) {
+        List<Item> out = new ArrayList<>();
+        if (ctx.checkSelfPermission(ContentProbe.PERMISSION) != PackageManager.PERMISSION_GRANTED) return out;
+        String[] cols = {
+                TvContract.PreviewPrograms.COLUMN_PACKAGE_NAME,
+                TvContract.PreviewPrograms.COLUMN_TITLE,
+                TvContract.PreviewPrograms.COLUMN_POSTER_ART_URI,
+                TvContract.PreviewPrograms.COLUMN_THUMBNAIL_URI,
+                TvContract.PreviewPrograms.COLUMN_INTENT_URI,
+                TvContract.PreviewPrograms.COLUMN_SHORT_DESCRIPTION,
+                TvContract.PreviewPrograms.COLUMN_WEIGHT,
+        };
+        List<float[]> order = new ArrayList<>();
+        List<Item> rows = new ArrayList<>();
+        try (Cursor c = ctx.getContentResolver().query(TvContract.PreviewPrograms.CONTENT_URI, cols, null, null, null)) {
+            while (c != null && c.moveToNext()) {
+                if (!pkg.equals(c.getString(0)) || blank(c.getString(1))) continue;
+                // Prefer the 16:9 thumbnail for a full-screen picture; posters can be 2:3.
+                Uri image = picture(c.getString(3) != null ? c.getString(3) : c.getString(2));
+                if (image == null) continue;
+                Item item = new Item(c.getString(1).trim(), null, image, intent(c.getString(4), pkg));
+                item.plot = c.getString(5);
+                order.add(new float[]{c.getInt(6), rows.size()});
+                rows.add(item);
+            }
+        } catch (RuntimeException e) {
+            Log.w(TAG, "previews: " + e);
+        }
+        // Highest weight first (the app's own ranking); the provider's order otherwise.
+        order.sort((a, b) -> Float.compare(b[0], a[0]));
+        for (float[] o : order) {
+            if (out.size() >= MAX_PREVIEWS) break;
+            out.add(rows.get((int) o[1]));
+        }
         return out;
     }
 

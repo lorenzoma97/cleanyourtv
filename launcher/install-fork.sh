@@ -26,7 +26,9 @@ GOT=$(sha256sum "$CASA" | awk '{print $1}')
 [ -n "$WANT" ] && [ "$WANT" = "$GOT" ] || { echo "ERROR: Casa checksum mismatch ($GOT vs $WANT)" >&2; exit 1; }
 "$PY" -I ../tools/b64push.py "$CASA" /data/local/tmp/casa.apk
 tv 'pm install -r /data/local/tmp/casa.apk; rm -f /data/local/tmp/casa.apk'
+# Windows Python cannot open a Git Bash path (/c/Users/...) with MSYS_NO_PATHCONV=1: hand it C:/Users/...
 KEY="$HOME/.cleanyourtv/tmdb.txt"
+command -v cygpath >/dev/null && KEY="$(cygpath -m "$KEY")"
 if [ -f "$KEY" ]; then
   tv 'mkdir -p /sdcard/Android/data/it.lorenzoma97.casa/files'
   tv --push "$KEY" /sdcard/Android/data/it.lorenzoma97.casa/files/tmdb.txt
