@@ -1634,6 +1634,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private TextView heroPlot;
     /** Where the dock band starts (root coordinates): the shelf is placed from there upwards. */
     private float lastDockTop = -1;
+    /** A part of the shelf is about to be dropped for lack of room (placeHero): one at a time. */
+    private boolean shedPending;
     private int weatherMinutes;
     private android.animation.ValueAnimator segRun;
     /** Fork: Up from the dock opens the title's detail (buttons, longer plot); the app panel slides down, dimmed. */
@@ -1919,24 +1921,26 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         lastDockTop = dockTopNow();
         float y = lastDockTop + detailShift() - 32 * density - hero.getHeight();
         float min = heroMinY();
-        if (y < min && shelfShown != null && shelfDetail) {
-            // The detail keeps its buttons: it drops the plot a line at a time.
-            if (heroPlot != null && heroPlot.getVisibility() == View.VISIBLE) {
-                int lines = heroPlot.getLineCount();
-                if (lines > 2) heroPlot.setMaxLines(lines - 1);
-                else heroPlot.setVisibility(View.GONE);
-                return;
-            }
-        } else if (y < min && shelfShown != null) {
-            View[] shed = {heroPlot, heroButtons};
-            for (View v : shed) {
-                if (v != null && v.getVisibility() == View.VISIBLE) {
-                    v.setVisibility(View.GONE);   // the layout change calls back here with the shorter shelf
-                    return;
-                }
-            }
-        }
         hero.setY(Math.max(y, min));
+        if (y >= min || shelfShown == null || shedPending) return;
+        // Over the clock: the plot goes a line at a time, then (Home only) the buttons; the layout change calls back
+        // here with the shorter shelf. Posted: a view turned GONE during layout is not laid out again, and the shelf
+        // kept the plot's room with nothing in it.
+        if (heroPlot != null && heroPlot.getVisibility() == View.VISIBLE) {
+            int lines = heroPlot.getLineCount();
+            shedPending = true;
+            hero.post(() -> {
+                shedPending = false;
+                if (lines > 1) heroPlot.setMaxLines(lines - 1);
+                else heroPlot.setVisibility(View.GONE);
+            });
+        } else if (!shelfDetail && heroButtons != null && heroButtons.getVisibility() == View.VISIBLE) {
+            shedPending = true;
+            hero.post(() -> {
+                shedPending = false;
+                heroButtons.setVisibility(View.GONE);
+            });
+        }
     }
 
     /** Top of the dock tiles in root coordinates, read from the laid-out dock row; the last known value otherwise. */
