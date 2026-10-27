@@ -26,6 +26,16 @@ public class GlassView extends View {
     private int glowRgb = 0xFFFFFF;
     /** Glow strength: the white glow stays faint, a coloured one needs more alpha to read as warm light. */
     private int glowAlpha = 0x30;
+    /**
+     * Fork lorenzoma97, "liquid glass" (Apple tvOS / 2025 look): no coloured glow and no white slab. A soft dark
+     * shadow lifts the tile, a barely-there sheen catches the light at the top left, and a hairline rim fades from
+     * the top edge to the bottom. Delicate on purpose: the tile's own art stays the focus.
+     */
+    private boolean liquid;
+    private final Paint liquidFill = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint liquidSheen = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint liquidRim = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint shadow = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     public GlassView(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -39,6 +49,22 @@ public class GlassView extends View {
         // move it without replaying clipPath and the glow on every frame. That path is
         // software-rendered on the MT5895 and is what makes the highlight crawl.
         setLayerType(LAYER_TYPE_HARDWARE, null);
+    }
+
+    void setLiquid(boolean on) {
+        liquid = on;
+        liquidRim.setStyle(Paint.Style.STROKE);
+        liquidRim.setStrokeWidth(Math.max(1f, density));
+        shadow.setStyle(Paint.Style.STROKE);
+        updateLiquidShaders(getWidth(), getHeight());
+        invalidate();
+    }
+
+    private void updateLiquidShaders(int w, int h) {
+        if (!liquid || w == 0 || h == 0) return;
+        liquidFill.setShader(new LinearGradient(0, 0, 0, h, 0x14FFFFFF, 0x03FFFFFF, Shader.TileMode.CLAMP));
+        liquidSheen.setShader(new LinearGradient(0, 0, w * 0.55f, h * 0.6f, 0x2EFFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP));
+        liquidRim.setShader(new LinearGradient(0, 0, 0, h, 0x9EFFFFFF, 0x1FFFFFFF, Shader.TileMode.CLAMP));
     }
 
     /** Tints the rim and the outer glow; 0 restores the plain white glass. */
@@ -68,12 +94,30 @@ public class GlassView extends View {
         super.onSizeChanged(w, h, oldw, oldh);
         fill.setShader(new LinearGradient(0, 0, 0, h, 0x3DFFFFFF, 0x12FFFFFF, Shader.TileMode.CLAMP));
         specular.setShader(new LinearGradient(0, 0, 0, h * 0.45f, 0x66FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP));
+        updateLiquidShaders(w, h);
     }
 
     @Override
     protected void onDraw(Canvas canvas) {
         float inset = 6f * density;   // room for the glow
         rect.set(inset, inset, getWidth() - inset, getHeight() - inset);
+        if (liquid) {
+            // Lift: thin dark rings, fading outwards and sitting a little lower, like a soft shadow under the tile.
+            int rings = 10;
+            float step = inset / rings, drop = 2.5f * density;
+            shadow.setStrokeWidth(step + 0.5f);
+            for (int i = 0; i < rings; i++) {
+                float o = step * (i + 0.5f);
+                float t = 1f - (float) i / rings;
+                shadow.setColor(Math.round(0x46 * t * t) << 24);
+                canvas.drawRoundRect(rect.left - o, rect.top - o + drop, rect.right + o, rect.bottom + o + drop,
+                        radius + o, radius + o, shadow);
+            }
+            canvas.drawRoundRect(rect, radius, radius, liquidFill);
+            canvas.drawRoundRect(rect, radius, radius, liquidSheen);
+            canvas.drawRoundRect(rect, radius, radius, liquidRim);
+            return;
+        }
 
         // Outer glow: thin rings across the inset, each a little fainter, so it fades out smoothly. Three wide
         // strokes left visible bands once the glow took an app's colour at a stronger alpha. The hardware layer

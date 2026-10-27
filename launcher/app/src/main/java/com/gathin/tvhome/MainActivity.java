@@ -1393,7 +1393,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         glassTargetX = x;
         glassTargetY = y;
         // Cinematic shelf: the highlight glows in the dock app's colour, plain white in the grid. app_glow: every tile.
-        boolean coloured = (appGlow || cinematic && position < COLUMNS) && !festive;
+        // Fork: liquid glass on the cinematic shelf, never tinted with the app's colour (it read too loud).
+        boolean coloured = appGlow && !cinematic && !festive;
         int accent = coloured ? adapter.ambientColorAt(position) : 0;
         if ((cinematic || appGlow) && !festive && accent != glassAccent) {
             glassAccent = accent;
@@ -1461,7 +1462,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         String label = adapter.labelAt(position);
         int color = adapter.ambientColorAt(position);
         lastDockTop = dockTopInRoot;
-        float y = Math.max(heroMinY(), dockTopInRoot - 14 * density - 26 * density - hero.getHeight());
+        float y = Math.max(heroMinY(), dockTopInRoot - 32 * density - hero.getHeight());
         hero.post(this::placeHero);   // fork: re-anchor from the laid-out dock (the value above can be pre-scroll)
         // Fork: while a content shelf title is on screen for this app, it (not the app name) is what the shelf shows.
         boolean onShelf = shelfShown != null && java.util.Objects.equals(adapter.packageAt(position), shelfPkg);
@@ -1537,6 +1538,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     /** The parts that never change: a larger name, the meta line and the dots, the artwork and the scrim. */
     private void setUpCinematicShelf() {
+        glass.setLiquid(true);   // fork: Apple-like liquid glass focus
         heroName.setTextSize(TypedValue.COMPLEX_UNIT_SP, 68f);
         heroName.setLetterSpacing(-0.025f);
         heroMeta.setVisibility(View.INVISIBLE);   // keeps its height, so the name does not jump when it fills in
@@ -1786,7 +1788,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         if (heroPlot != null) {
             // Decide up front, so the shelf does not flash a plot that is dropped one frame later for lack of room.
-            boolean plot = item.plot != null && !item.plot.trim().isEmpty() && heroRoom() > 190 * density;
+            boolean plot = item.plot != null && !item.plot.trim().isEmpty() && heroRoom() > 182 * density;
             heroPlot.setText(plot ? item.plot : "");
             heroPlot.setVisibility(plot ? View.VISIBLE : View.GONE);
         }
@@ -1908,7 +1910,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private void placeHero() {
         if (lastDockTop < 0 || !heroShown) return;
         lastDockTop = dockTopNow();
-        float y = lastDockTop - 40 * density - hero.getHeight();
+        float y = lastDockTop - 32 * density - hero.getHeight();
         float min = heroMinY();
         if (y < min && shelfShown != null) {
             View[] shed = {heroPlot, heroMeta, heroSegs};
@@ -1941,7 +1943,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private float heroRoom() {
         if (lastDockTop < 0) return Float.MAX_VALUE;
         lastDockTop = dockTopNow();
-        return lastDockTop - 40 * density - heroMinY();
+        return lastDockTop - 32 * density - heroMinY();
     }
 
     /** Bologna now, from the Casa add-on; hidden when Casa is missing or has no reading yet. */
