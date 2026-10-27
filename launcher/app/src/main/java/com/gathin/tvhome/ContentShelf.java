@@ -267,6 +267,22 @@ final class ContentShelf {
         return i < 0 ? null : c.getString(i);
     }
 
+    /** Tonight's five from Casa as small pictures for Home's bar; null when Casa is not installed. */
+    static List<Bitmap> picks(Context ctx, int maxWidth) {
+        List<Bitmap> out = new ArrayList<>();
+        try (Cursor c = ctx.getContentResolver().query(Uri.parse("content://" + CASA + "/picks"), null, null, null, null)) {
+            if (c == null) return null;
+            while (c.moveToNext()) {
+                String image = column(c, "image");
+                Bitmap b = blank(image) ? null : decode(ctx, Uri.parse(image), maxWidth);
+                if (b != null) out.add(b);
+            }
+        } catch (RuntimeException e) {
+            return null;
+        }
+        return out;
+    }
+
     /** Bologna now from Casa: {city, temp, max, min, desc, icon, air, aqi}; null when Casa has no reading. */
     static String[] weather(Context ctx) {
         try (Cursor c = ctx.getContentResolver().query(Uri.parse("content://" + CASA + "/weather"), null, null, null, null)) {

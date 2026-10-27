@@ -498,6 +498,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         fillDockLeavesSlots = !cfg.fillDock;
         Order savedOrder = Order.load(Order.file(this));
         adapter.setSavedOrder(Order.ranks(savedOrder, dockApps), Order.docked(savedOrder, dockApps));
+        // Fork: on the cinematic shelf a narrower, centred app panel (tiles ~85dp instead of ~96dp). Set before the
+        // adapter makes its first tiles, which take their size from the grid's padding.
+        if (cinematic && dockRow) {
+            int gridW = getResources().getDisplayMetrics().widthPixels - Math.round(2 * 56 * density);
+            int side = Math.max(Math.round(10 * density), (gridW - Math.round(COLUMNS * 106 * density)) / 2);
+            grid.setPadding(side, grid.getPaddingTop(), side, grid.getPaddingBottom());
+        }
         grid.setAdapter(adapter);
 
         // tvOS layout: push the dock row towards the bottom of the screen, leaving room for
@@ -508,13 +515,19 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             // Item height follows the tile size, which follows the columns and the rows that must fit (AppAdapter.tileWidthPx).
             int inner = (r - l) - grid.getPaddingLeft() - grid.getPaddingRight();
             int tileW = AppAdapter.tileWidthPx(inner, h, COLUMNS, rowsBelowDock, cfg.dockTitle, cfg.dockRow, density);
-            int itemH = AppAdapter.itemHeightPx(AppAdapter.tileHeightPx(tileW), density);
-            int dockRow = itemH + (int) (AppAdapter.DOCK_EXTRA_DP * density);   // item height plus DockDecoration offsets
+            // Fork: the single app panel has no names under the tiles and tighter rows, so its real height is
+            // smaller; measuring it with the roomy spacing left the panel high with an empty band under it.
+            boolean compact = cinematic && MainActivity.this.dockRow;
+            int itemH = compact ? AppAdapter.tileHeightPx(tileW) + Math.round(2 * AppAdapter.COMPACT_PAD_DP * density)
+                    : AppAdapter.itemHeightPx(AppAdapter.tileHeightPx(tileW), density);
+            int dockRow = itemH + (int) ((compact ? AppAdapter.BAND_DOCK_EXTRA_DP : AppAdapter.DOCK_EXTRA_DP) * density);
             int gridRows = itemH * rowsBelowDock;
             // Keep the hero below the header when the library is enabled on a short screen,
             // even when the theme requests an extra visible row below the dock.
             int shelfClearance = cfg.appLibrary ? hero.getMeasuredHeight() + (int) (40 * density) : 0;
-            int want = Math.max(shelfClearance, h - dockRow - gridRows - (int) (AppAdapter.BOTTOM_ROOM_DP * density));
+            // Fork: under the panel only the "Scopri una nuova serie" bar (about 62dp with its margins).
+            int bottomRoom = (int) ((compact ? 62 : AppAdapter.BOTTOM_ROOM_DP) * density);
+            int want = Math.max(shelfClearance, h - dockRow - gridRows - bottomRoom);
             // Where the rows cannot fit even at the smallest tile (3 rows with the title on), the title keeps its
             // room above the dock and the last rows run off the bottom instead of the title drawing over the clock.
             if (MainActivity.this.dockRow && cfg.dockTitle && rowsBelowDock > 0) want = Math.max(want, (int) (AppAdapter.TITLE_ROOM_DP * density));
@@ -759,6 +772,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     protected void onResume() {
         super.onResume();
         updateWeather();
+        loadDiscoverBar();
         // A festival that started or ended while Home was in the background: rebuild with or without it.
         if (festive != festival.active(LocalDate.now())) {
             recreate();
@@ -1346,6 +1360,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     public void onTileFocused(int position, View card) {
         lastFocused = position;
         lastFocusedKey = adapter.keyAt(position);
+        int apps = adapter.appCount();
+        setDiscoverActive(position >= COLUMNS && position >= ((apps - 1) / COLUMNS) * COLUMNS);   // fork
         // Focus restored before the first layout (cold start): the tile has no size yet, and the glass
         // would be sized to 2*pad. Run again once the tile is laid out.
         if (card.getWidth() == 0) {
@@ -2001,6 +2017,52 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             heroArt.setScaleType(ImageView.ScaleType.FIT_XY);   // the app's blurred art is meant to be stretched
             heroArtKey = null;
         }
+    }
+
+    private boolean discoverActive;
+
+    /** The bar under the app panel: tonight's five from Casa as thumbnails; hidden without Casa. */
+    private void loadDiscoverBar() {
+        LinearLayout bar = findViewById(R.id.discoverBar);
+        if (bar == null || !cinematic) return;
+        Context app = getApplicationContext();
+        int w = Math.round(56 * density), h = Math.round(32 * density);
+        shelfIo.execute(() -> {
+            List<Bitmap> thumbs = ContentShelf.picks(app, w * 2);
+            handler.post(() -> {
+                if (isDestroyed()) return;
+                if (thumbs == null) {
+                    bar.setVisibility(View.GONE);
+                    return;
+                }
+                LinearLayout row = findViewById(R.id.discoverThumbs);
+                row.removeAllViews();
+                for (Bitmap b : thumbs) {
+                    ImageView iv = new ImageView(this);
+                    iv.setImageBitmap(b);
+                    iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                    iv.setBackgroundResource(R.drawable.discover_thumb);
+                    iv.setClipToOutline(true);
+                    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(w, h);
+                    lp.setMarginEnd(Math.round(6 * density));
+                    row.addView(iv, lp);
+                }
+                row.setVisibility(thumbs.isEmpty() ? View.GONE : View.VISIBLE);
+                bar.setVisibility(View.VISIBLE);
+            });
+        });
+    }
+
+    /** On the last app row the bar lights up and says Down opens the section. */
+    private void setDiscoverActive(boolean on) {
+        View bar = findViewById(R.id.discoverBar);
+        if (bar == null || discoverActive == on) return;
+        discoverActive = on;
+        bar.setBackgroundResource(on ? R.drawable.discover_bar_on : R.drawable.discover_bar);
+        if (animations) bar.animate().alpha(on ? 1f : 0.85f).scaleX(on ? 1.05f : 1f).scaleY(on ? 1.05f : 1f).setDuration(220).start();
+        else bar.setAlpha(on ? 1f : 0.85f);
+        TextView hint = findViewById(R.id.discoverHint);
+        if (hint != null) hint.setText(on ? "premi  ▼" : "▼");
     }
 
     /**

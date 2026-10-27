@@ -136,6 +136,8 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     static final float ITEM_EXTRA_DP = 45;
     /** DockDecoration's offsets above and below the dock row. */
     static final float DOCK_EXTRA_DP = 6 + 12;
+    /** Fork lorenzoma97, single app panel (cinematic, no names): item padding above and below, and the dock offsets. */
+    static final float COMPACT_PAD_DP = 5, BAND_DOCK_EXTRA_DP = 4 + 6;
     /** Room kept under the last row rows_below_dock asks for (MainActivity places the dock with the same). */
     static final float BOTTOM_ROOM_DP = 30;
     /** Room kept above the dock for the dock title (48sp hero name plus its 40dp gap) when dock_title is on. */
@@ -400,6 +402,9 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             // Compact spacing (COMPACT_ITEM_EXTRA_DP): 4dp item padding and a 20dp name instead of 8dp and 22dp.
             nameLp.height = Math.round(20 * density);
             int pad = Math.round(4 * density);
+            v.setPadding(v.getPaddingLeft(), pad, v.getPaddingRight(), pad);
+        } else if (noNames) {
+            int pad = Math.round(COMPACT_PAD_DP * density);   // fork: the single app panel's tighter rows
             v.setPadding(v.getPaddingLeft(), pad, v.getPaddingRight(), pad);
         }
         name.setLayoutParams(nameLp);

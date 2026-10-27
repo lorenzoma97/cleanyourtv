@@ -167,12 +167,19 @@ public class SerieActivity extends Activity {
         if (pool == null) return;
         HashSet<Long> avoid = new HashSet<>(picks);
         if (slot == null) {
-            picks = Pool.pick(pool, genre, Store.seen(this), avoid, PICKS, random);
+            if (genre == null && picks.isEmpty()) {
+                // First open: tonight's five, the same Home's bar shows.
+                picks = Pool.tonight(pool, Store.tonight(this), Store.seen(this), PICKS, random);
+            } else {
+                picks = Pool.pick(pool, genre, Store.seen(this), avoid, PICKS, random);
+            }
+            if (genre == null) Store.saveTonight(this, picks);
             landing = true;
         } else {
             List<Long> one = Pool.pick(pool, genre, Store.seen(this), avoid, 1, random);
             if (one.isEmpty()) picks.remove((int) slot);
             else picks.set(slot, one.get(0));
+            if (genre == null) Store.saveTonight(this, picks);
         }
         int t = ++token;
         for (int i = 0; i < PICKS; i++) {

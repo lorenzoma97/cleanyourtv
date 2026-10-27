@@ -83,6 +83,26 @@ final class Store {
         prefs(ctx).edit().putStringSet(SEEN, s).apply();
     }
 
+    /** Tonight's five ("Tutte"): the same in Home's bar and in the section, for the day or until "Pesca altre". */
+    static java.util.List<Long> tonight(Context ctx) {
+        SharedPreferences p = prefs(ctx);
+        java.util.List<Long> out = new java.util.ArrayList<>();
+        if (!java.time.LocalDate.now().toString().equals(p.getString("tonight_day", ""))) return out;
+        for (String s : p.getString("tonight", "").split(",")) {
+            try {
+                out.add(Long.parseLong(s.trim()));
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return out;
+    }
+
+    static void saveTonight(Context ctx, java.util.List<Long> ids) {
+        StringBuilder sb = new StringBuilder();
+        for (Long id : ids) sb.append(sb.length() == 0 ? "" : ",").append(id);
+        prefs(ctx).edit().putString("tonight", sb.toString()).putString("tonight_day", java.time.LocalDate.now().toString()).apply();
+    }
+
     private static SharedPreferences prefs(Context ctx) {
         return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
     }

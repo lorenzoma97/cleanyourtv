@@ -79,6 +79,16 @@ final class Pool {
         return new ArrayList<>(c.subList(0, Math.min(n, c.size())));
     }
 
+    /**
+     * Tonight's picks for "Tutte": the saved ones while they are from today and none was watched since, else n new.
+     * Pure: the caller loads and saves (Store.tonight / Store.saveTonight).
+     */
+    static List<Long> tonight(JSONObject pool, List<Long> saved, Set<Long> seen, int n, Random random) {
+        boolean ok = saved.size() == n;
+        for (Long id : saved) ok &= !seen.contains(id);
+        return ok ? new ArrayList<>(saved) : pick(pool, null, seen, java.util.Collections.emptySet(), n, random);
+    }
+
     /** The pool entry for an id: services "s", genres "g", Netflix id "nf". */
     static JSONObject item(JSONObject pool, long id) {
         JSONArray items = pool == null ? null : pool.optJSONArray("items");

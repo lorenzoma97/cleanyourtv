@@ -40,6 +40,7 @@ public class HeroProvider extends ContentProvider {
         List<String> seg = uri.getPathSegments();
         if (seg.size() == 1 && "weather".equals(seg.get(0))) return weather();
         if (seg.size() == 1 && "art".equals(seg.get(0))) return art(uri.getQueryParameter("t"));
+        if (seg.size() == 1 && "picks".equals(seg.get(0))) return picks();
         MatrixCursor c = new MatrixCursor(COLUMNS);
         if (seg.size() != 2 || !"items".equals(seg.get(0))) return c;
         File f = Store.file(getContext(), "shelf.json");
@@ -85,6 +86,28 @@ public class HeroProvider extends ContentProvider {
         return c;
     }
 
+    /** Tonight's five for Home's "Scopri una nuova serie" bar: title and a small backdrop each (the section's first cards). */
+    private Cursor picks() {
+        MatrixCursor c = new MatrixCursor(new String[]{"tmdb", "title", "image"});
+        JSONObject content = Shelf.content(getContext(), false);
+        JSONObject pool = content == null ? null : content.optJSONObject("pool");
+        if (pool == null) return c;
+        java.util.List<Long> ids = Pool.tonight(pool, Store.tonight(getContext()), Store.seen(getContext()), 5, new java.util.Random());
+        Store.saveTonight(getContext(), ids);
+        for (Long id : ids) {
+            JSONObject d = Tmdb.details(getContext(), id);
+            String path = d == null ? null : Tmdb.backdrop(d);
+            if (path == null) continue;
+            try {
+                File f = Tmdb.image(getContext(), "pool", path, "w300");
+                c.addRow(new Object[]{id, d.optString("name"), "content://" + AUTHORITY + "/pool/" + f.getName()});
+            } catch (Exception ignored) {
+                // a missing thumbnail just leaves a shorter strip
+            }
+        }
+        return c;
+    }
+
     /** One row: Bologna now. Fetched on the binder thread when stale (the launcher asks off its main thread). */
     private Cursor weather() {
         MatrixCursor c = new MatrixCursor(WEATHER);
@@ -102,8 +125,8 @@ public class HeroProvider extends ContentProvider {
         if (!"r".equals(mode)) throw new FileNotFoundException("read only");
         List<String> seg = uri.getPathSegments();
         File f;
-        if (seg.size() == 2 && "img".equals(seg.get(0)) && seg.get(1).matches("[A-Za-z0-9._-]+")) {
-            f = new File(Store.dir(getContext(), "img"), seg.get(1));
+        if (seg.size() == 2 && ("img".equals(seg.get(0)) || "pool".equals(seg.get(0))) && seg.get(1).matches("[A-Za-z0-9._-]+")) {
+            f = new File(Store.dir(getContext(), seg.get(0)), seg.get(1));
         } else if (seg.size() == 1 && "url".equals(seg.get(0))) {
             f = remote(uri.getQueryParameter("u"));
         } else {

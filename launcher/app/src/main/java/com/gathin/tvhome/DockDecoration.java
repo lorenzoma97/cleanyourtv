@@ -57,8 +57,9 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
                                @NonNull RecyclerView.State state) {
         int pos = parent.getChildAdapterPosition(view);
         if (pos >= 0 && pos < dockSize) {
-            outRect.top = (int) (6 * density);
-            outRect.bottom = (int) (12 * density);
+            // Fork: inside the single app panel the dock row only needs a small gap to the row below.
+            outRect.top = (int) ((bandAll ? 4 : 6) * density);
+            outRect.bottom = (int) ((bandAll ? 6 : 12) * density);
         }
     }
 

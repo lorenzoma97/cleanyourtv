@@ -61,6 +61,16 @@ public class PoolTest {
     }
 
     @Test
+    public void tonightStaysUntilOneIsWatched() throws Exception {
+        JSONObject p = pool();
+        List<Long> saved = Arrays.asList(1L, 3L);
+        assertEquals(saved, Pool.tonight(p, saved, new HashSet<>(), 2, new Random(1)));          // same day: kept
+        List<Long> fresh = Pool.tonight(p, saved, new HashSet<>(Arrays.asList(3L)), 2, new Random(1));
+        assertTrue(!fresh.contains(3L));                                                        // 3 watched: redrawn
+        assertEquals(2, Pool.tonight(p, Arrays.asList(), new HashSet<>(), 2, new Random(1)).size());   // nothing saved
+    }
+
+    @Test
     public void guardaPrefersNetflix() throws Exception {
         JSONObject p = pool();
         assertEquals("netflix", Pool.service(Pool.item(p, 3)));

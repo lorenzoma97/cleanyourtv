@@ -521,18 +521,59 @@
         android:alpha="0"
         android:importantForAccessibility="no" />
 
-    <!-- Fork lorenzoma97: a peek of Home's lower section (Casa add-on), reached with Down from the last app row. -->
-    <TextView
-        android:id="@+id/discoverPeek"
+    <!-- Fork lorenzoma97: Home's lower section (Casa add-on) announced at the bottom: tonight's five as thumbnails;
+         it lights up on the last app row, where Down opens the section. -->
+    <LinearLayout
+        android:id="@+id/discoverBar"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|center_horizontal"
-        android:layout_marginBottom="5dp"
-        android:text="▾   SCOPRI UNA NUOVA SERIE"
-        android:textColor="#D9E5A00D"
-        android:textSize="10sp"
-        android:fontFamily="monospace"
-        android:letterSpacing="0.2"
+        android:layout_marginBottom="12dp"
+        android:background="@drawable/discover_bar"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp"
+        android:alpha="0.85"
         android:focusable="false"
-        android:importantForAccessibility="no" />
+        android:importantForAccessibility="no"
+        android:visibility="gone">
+
+        <ImageView
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:src="@drawable/ic_die_amber"
+            android:importantForAccessibility="no" />
+
+        <TextView
+            android:id="@+id/discoverLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:text="Scopri una nuova serie"
+            android:textAllCaps="true"
+            android:letterSpacing="0.14"
+            android:textColor="#FFE5A00D"
+            android:textSize="12sp"
+            android:fontFamily="@font/outfit_medium" />
+
+        <LinearLayout
+            android:id="@+id/discoverThumbs"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="14dp"
+            android:orientation="horizontal" />
+
+        <TextView
+            android:id="@+id/discoverHint"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:text="▼"
+            android:textColor="#CCE5A00D"
+            android:textSize="11sp"
+            android:fontFamily="monospace" />
+    </LinearLayout>
 </FrameLayout>
