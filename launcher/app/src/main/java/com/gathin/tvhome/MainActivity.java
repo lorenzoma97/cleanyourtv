@@ -537,6 +537,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 glassScrollShift -= dy;
                 glass.setTranslationY(glass.getTranslationY() - dy);
             }
+
+            // Fork: the dock parks with a scroll; once it stops, fit the content shelf to where the dock really is.
+            @Override
+            public void onScrollStateChanged(@NonNull RecyclerView rv, int state) {
+                if (state != RecyclerView.SCROLL_STATE_IDLE || !heroShown || shelfShown == null) return;
+                showShelfText(shelfShown, shelfLogo);
+                placeHero();
+            }
         });
 
         // Liquid feel: soft springs on the highlight's position.
@@ -1438,6 +1446,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         int color = adapter.ambientColorAt(position);
         lastDockTop = dockTopInRoot;
         float y = Math.max(heroMinY(), dockTopInRoot - 14 * density - 26 * density - hero.getHeight());
+        hero.post(this::placeHero);   // fork: re-anchor from the laid-out dock (the value above can be pre-scroll)
         // Fork: while a content shelf title is on screen for this app, it (not the app name) is what the shelf shows.
         boolean onShelf = shelfShown != null && java.util.Objects.equals(adapter.packageAt(position), shelfPkg);
         boolean changed = !(onShelf ? shelfShown.title : label).contentEquals(heroName.getText());
@@ -1882,6 +1891,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
      */
     private void placeHero() {
         if (lastDockTop < 0 || !heroShown) return;
+        lastDockTop = dockTopNow();
         float y = lastDockTop - 40 * density - hero.getHeight();
         float min = heroMinY();
         if (y < min && shelfShown != null) {
@@ -1896,9 +1906,26 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         hero.setY(Math.max(y, min));
     }
 
+    /** Top of the dock tiles in root coordinates, read from the laid-out dock row; the last known value otherwise. */
+    private float dockTopNow() {
+        for (int i = 0; i < grid.getChildCount(); i++) {
+            View child = grid.getChildAt(i);
+            int pos = grid.getChildAdapterPosition(child);
+            if (pos < 0 || pos >= COLUMNS) continue;
+            View card = child.findViewById(R.id.card);
+            if (card == null || card.getHeight() == 0) continue;
+            Rect r = new Rect(0, 0, card.getWidth(), card.getHeight());
+            root.offsetDescendantRectToMyCoords(card, r);
+            return r.top;
+        }
+        return lastDockTop;
+    }
+
     /** Room for the shelf between the clock panel and the app panel, in px (unknown before the first focus). */
     private float heroRoom() {
-        return lastDockTop < 0 ? Float.MAX_VALUE : lastDockTop - 40 * density - heroMinY();
+        if (lastDockTop < 0) return Float.MAX_VALUE;
+        lastDockTop = dockTopNow();
+        return lastDockTop - 40 * density - heroMinY();
     }
 
     /** Bologna now, from the Casa add-on; hidden when Casa is missing or has no reading yet. */
