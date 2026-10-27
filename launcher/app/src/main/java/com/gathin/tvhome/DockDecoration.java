@@ -15,6 +15,8 @@ import androidx.recyclerview.widget.RecyclerView;
 public class DockDecoration extends RecyclerView.ItemDecoration {
 
     private final int dockSize;
+    /** Fork lorenzoma97: the band reaches over every app row (one panel for all apps); spacing stays the dock's. */
+    private final boolean bandAll;
     private final float density;
     private final Paint band = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint edge = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -34,7 +36,13 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
      * @param lightGlass  a light frosted band like the pills, for a sky or wallpaper behind it.
      */
     DockDecoration(int dockSize, float density, boolean translucent, boolean names, int opacity, boolean lightGlass) {
+        this(dockSize, density, translucent, names, opacity, lightGlass, false);
+    }
+
+    DockDecoration(int dockSize, float density, boolean translucent, boolean names, int opacity, boolean lightGlass,
+                   boolean bandAll) {
         this.dockSize = dockSize;
+        this.bandAll = bandAll;
         this.density = density;
         this.namesRoom = names ? 22 * density : 0;
         this.lightGlass = lightGlass;
@@ -60,7 +68,7 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
         for (int i = 0; i < parent.getChildCount(); i++) {
             View child = parent.getChildAt(i);
             int pos = parent.getChildAdapterPosition(child);
-            if (pos < 0 || pos >= dockSize) continue;
+            if (pos < 0 || (!bandAll && pos >= dockSize)) continue;
             RecyclerView.ViewHolder vh = parent.getChildViewHolder(child);
             View card = vh instanceof AppAdapter.Holder ? ((AppAdapter.Holder) vh).card : child.findViewById(R.id.card);
             if (card == null) continue;

@@ -116,7 +116,7 @@
         <ImageView
             android:id="@+id/heroLogo"
             android:layout_width="wrap_content"
-            android:layout_height="64dp"
+            android:layout_height="56dp"
             android:maxWidth="460dp"
             android:adjustViewBounds="true"
             android:scaleType="fitStart"
@@ -140,7 +140,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="2dp"
-            android:layout_marginTop="14dp"
+            android:layout_marginTop="10dp"
             android:orientation="horizontal"
             android:gravity="center_vertical"
             android:visibility="gone" />
@@ -204,7 +204,7 @@
             android:layout_width="wrap_content"
             android:layout_height="3dp"
             android:layout_marginStart="2dp"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="10dp"
             android:orientation="horizontal"
             android:visibility="gone" />
     </LinearLayout>

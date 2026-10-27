@@ -486,8 +486,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             }
         });
         // Fork: on the cinematic shelf the band holds every app row, one panel for all apps (dock + the rest).
-        if (dockRow) grid.addItemDecoration(new DockDecoration(cinematic ? Integer.MAX_VALUE : COLUMNS, density, cinematic,
-                cfg.alwaysShowNames, cfg.dockOpacity, cfg.dockGlass));
+        if (dockRow) grid.addItemDecoration(new DockDecoration(COLUMNS, density, cinematic,
+                cfg.alwaysShowNames, cfg.dockOpacity, cfg.dockGlass, cinematic));
         // Reduced motion: the tiles are simply there, with no entrance (reloadApps skips it there too).
         if (animations && !reducedMotion) {
             grid.setLayoutAnimation(new LayoutAnimationController(
@@ -1760,7 +1760,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             }
         }
         if (heroPlot != null) {
-            boolean plot = item.plot != null && !item.plot.trim().isEmpty();
+            // Decide up front, so the shelf does not flash a plot that is dropped one frame later for lack of room.
+            boolean plot = item.plot != null && !item.plot.trim().isEmpty() && heroRoom() > 190 * density;
             heroPlot.setText(plot ? item.plot : "");
             heroPlot.setVisibility(plot ? View.VISIBLE : View.GONE);
         }
@@ -1772,9 +1773,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         heroMeta.setLetterSpacing(0.04f);
         heroMeta.setTextColor(0x8CFFFFFF);
         heroMeta.setText(cta);
-        heroMeta.setVisibility(View.VISIBLE);
+        // Logo 56 + badges 32 + hint 28 + segments 13 (dp): show only what fits, the badges always.
+        float room = heroRoom();
+        heroMeta.setVisibility(room > 125 * density ? View.VISIBLE : View.GONE);
         heroDots.setVisibility(View.GONE);
-        showSegments();
+        if (room > 138 * density) showSegments();
+        else if (heroSegs != null) heroSegs.setVisibility(View.GONE);
     }
 
     private void addShelfChip(CharSequence text, int fill, int stroke, int color) {
@@ -1872,16 +1876,29 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         return r.bottom + 10 * density;
     }
 
-    /** Re-anchors the shelf above the dock after its height changed; drops the plot when even that does not fit. */
+    /**
+     * Re-anchors the shelf above the dock after its height changed. When it does not fit between the clock and the
+     * app panel it sheds, in order, the plot, the OK hint and the segments, rather than running under the apps.
+     */
     private void placeHero() {
         if (lastDockTop < 0 || !heroShown) return;
         float y = lastDockTop - 40 * density - hero.getHeight();
         float min = heroMinY();
-        if (y < min && heroPlot != null && heroPlot.getVisibility() == View.VISIBLE) {
-            heroPlot.setVisibility(View.GONE);   // the layout change calls back here with the shorter shelf
-            return;
+        if (y < min && shelfShown != null) {
+            View[] shed = {heroPlot, heroMeta, heroSegs};
+            for (View v : shed) {
+                if (v != null && v.getVisibility() == View.VISIBLE) {
+                    v.setVisibility(View.GONE);   // the layout change calls back here with the shorter shelf
+                    return;
+                }
+            }
         }
         hero.setY(Math.max(y, min));
+    }
+
+    /** Room for the shelf between the clock panel and the app panel, in px (unknown before the first focus). */
+    private float heroRoom() {
+        return lastDockTop < 0 ? Float.MAX_VALUE : lastDockTop - 40 * density - heroMinY();
     }
 
     /** Bologna now, from the Casa add-on; hidden when Casa is missing or has no reading yet. */
