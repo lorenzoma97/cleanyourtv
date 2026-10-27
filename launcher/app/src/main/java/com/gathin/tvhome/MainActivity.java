@@ -1752,8 +1752,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     /**
      * The redesigned shelf, Netflix x Apple TV: the title's logo (or the title in capitals), badges (TOP 10 with the
-     * rank, Nuova stagione, Riprendi, the season, the service), the resume bar, two lines of plot, what OK does, and
-     * one segment per title with the current one filling up.
+     * rank, Nuova stagione, Riprendi, the season, the service), the resume bar, two lines of plot, the Guarda/Apri
+     * buttons, and one segment per title with the current one filling up.
      */
     private void showShelfText(ContentShelf.Item item, Bitmap logo) {
         if (logo != null && heroLogo != null) {
@@ -1797,33 +1797,22 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         if (heroPlot != null) {
             // Decide up front, so the shelf does not flash a plot that is dropped one frame later for lack of room.
-            // The detail has the app panel's room too: up to four lines, which placeHero trims when they do not fit.
-            boolean plot = item.plot != null && !item.plot.trim().isEmpty() && (shelfDetail || heroRoom() > 182 * density);
+            // Logo 56 + badges 33 + plot 58 + buttons 37 (dp). The detail has the app panel's room too: up to four
+            // lines, which placeHero trims when they do not fit.
+            boolean plot = item.plot != null && !item.plot.trim().isEmpty() && (shelfDetail || heroRoom() > 185 * density);
             heroPlot.setMaxLines(shelfDetail ? 4 : 2);
             heroPlot.setText(plot ? item.plot : "");
             heroPlot.setVisibility(plot ? View.VISIBLE : View.GONE);
         }
-        String app = shelfLabel != null ? shelfLabel : "";
-        heroMeta.setTypeface(android.graphics.Typeface.MONOSPACE);
-        heroMeta.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f);
-        heroMeta.setLetterSpacing(0.04f);
-        heroMeta.setTextColor(0x8CFFFFFF);
+        heroMeta.setVisibility(View.GONE);   // the buttons themselves say there is more above the apps
         heroDots.setVisibility(View.GONE);
-        if (shelfDetail) {
-            showDetailButtons(item, app);
-            boolean more = shelfItems != null && shelfItems.size() > 1;
-            heroMeta.setText((more ? "◀ ▶  altri titoli   ·   " : "") + "▼  torna alle app");
-            heroMeta.setVisibility(View.VISIBLE);
+        if (heroButtons == null) return;
+        if (shelfDetail || heroRoom() > 127 * density) {
+            showShelfButtons(item, shelfLabel != null ? shelfLabel : "");
             showSegments();
-            return;
+        } else {
+            heroButtons.setVisibility(View.GONE);
         }
-        if (heroButtons != null) heroButtons.setVisibility(View.GONE);
-        heroMeta.setText("▲  dettagli   ·   OK  apri " + app);
-        // Logo 56 + badges 32 + hint 28 + segments 13 (dp): show only what fits, the badges always.
-        float room = heroRoom();
-        heroMeta.setVisibility(room > 125 * density ? View.VISIBLE : View.GONE);
-        if (room > 138 * density) showSegments();
-        else if (heroSegs != null) heroSegs.setVisibility(View.GONE);
     }
 
     private void addShelfChip(CharSequence text, int fill, int stroke, int color) {
@@ -1899,7 +1888,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (heroChips != null) heroChips.setVisibility(View.GONE);
         if (heroProgress != null) heroProgress.setVisibility(View.GONE);
         if (heroPlot != null) heroPlot.setVisibility(View.GONE);
-        if (heroSegs != null) heroSegs.setVisibility(View.GONE);
+        if (heroButtons != null) heroButtons.setVisibility(View.GONE);   // the segments sit in this row
         if (segRun != null) segRun.cancel();
         heroName.setVisibility(View.VISIBLE);
         heroName.setTypeface(getResources().getFont(R.font.outfit_light));
@@ -1923,7 +1912,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     /**
      * Re-anchors the shelf above the dock after its height changed. When it does not fit between the clock and the
-     * app panel it sheds, in order, the plot, the OK hint and the segments, rather than running under the apps.
+     * app panel it sheds, in order, the plot and the button row, rather than running under the apps.
      */
     private void placeHero() {
         if (lastDockTop < 0 || !heroShown) return;
@@ -1931,13 +1920,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         float y = lastDockTop + detailShift() - 32 * density - hero.getHeight();
         float min = heroMinY();
         if (y < min && shelfShown != null && shelfDetail) {
-            // The detail keeps its buttons: it drops the segments, the hint, then the plot a line at a time.
-            for (View v : new View[]{heroSegs, heroMeta}) {
-                if (v != null && v.getVisibility() == View.VISIBLE) {
-                    v.setVisibility(View.GONE);
-                    return;
-                }
-            }
+            // The detail keeps its buttons: it drops the plot a line at a time.
             if (heroPlot != null && heroPlot.getVisibility() == View.VISIBLE) {
                 int lines = heroPlot.getLineCount();
                 if (lines > 2) heroPlot.setMaxLines(lines - 1);
@@ -1945,7 +1928,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 return;
             }
         } else if (y < min && shelfShown != null) {
-            View[] shed = {heroPlot, heroMeta, heroSegs};
+            View[] shed = {heroPlot, heroButtons};
             for (View v : shed) {
                 if (v != null && v.getVisibility() == View.VISIBLE) {
                     v.setVisibility(View.GONE);   // the layout change calls back here with the shorter shelf
@@ -2168,8 +2151,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private void exitShelfDetail(boolean animate) {
         if (!shelfDetail) return;
         shelfDetail = false;
-        if (heroWatch.hasFocus() || heroOpen.hasFocus()) focusTile(lastFocused);   // before the buttons go
-        heroButtons.setVisibility(View.GONE);
+        if (heroWatch.hasFocus() || heroOpen.hasFocus()) focusTile(lastFocused);   // before they stop taking focus
         moveApps(false, animate);
         if (shelfShown == null) return;
         showShelfText(shelfShown, shelfLogo);
@@ -2178,16 +2160,29 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (shelfItems != null && shelfItems.size() > 1) handler.postDelayed(shelfTick, SHELF_ROTATE_MS);
     }
 
-    /** "Guarda" or "Riprendi" when the title has its own link; "Apri <app>" always. */
-    private void showDetailButtons(ContentShelf.Item item, String app) {
-        boolean watch = item.action != null;
+    /**
+     * "Guarda" or "Riprendi" when the title has its own link, "Apri <app>" always. On Home they are small, grey and
+     * out of focus reach, a hint that Up gets there; in the detail they are full size.
+     */
+    private void showShelfButtons(ContentShelf.Item item, String app) {
+        boolean watch = item.action != null, big = shelfDetail;
         if (!watch && heroWatch.isFocused()) heroOpen.requestFocus();   // never hide the focused button
         heroWatch.setText(item.resume != null || item.progress >= 0 ? "▶  Riprendi" : "▶  Guarda il titolo");
         heroWatch.setVisibility(watch ? View.VISIBLE : View.GONE);
         heroOpen.setText("Apri " + app);
+        int h = (int) ((big ? 22 : 13) * density), v = (int) ((big ? 9 : 5) * density);
+        for (TextView b : new TextView[]{heroWatch, heroOpen}) {
+            b.setTextSize(TypedValue.COMPLEX_UNIT_SP, big ? 16f : 12f);
+            b.setPadding(h, v, h + (int) (2 * density), v);
+            b.setAlpha(big ? 1f : 0.6f);
+            b.setFocusable(big);
+        }
         ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) heroOpen.getLayoutParams();
-        lp.setMarginStart(watch ? (int) (12 * density) : 0);
+        lp.setMarginStart(watch ? (int) ((big ? 12 : 8) * density) : 0);
         heroOpen.setLayoutParams(lp);
+        ViewGroup.MarginLayoutParams row = (ViewGroup.MarginLayoutParams) heroButtons.getLayoutParams();
+        row.topMargin = (int) ((big ? 16 : 12) * density);
+        heroButtons.setLayoutParams(row);
         heroButtons.setVisibility(View.VISIBLE);
     }
 
