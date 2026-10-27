@@ -45,5 +45,5 @@ echo "waiting 60 s for Casa's first download..."
 sleep 60
 tv 'content query --uri content://it.lorenzoma97.casa.hero/items/com.netflix.ninja --projection title:line' | head -12 || true
 tv 'logcat -d -s TvHomeProbe:I Casa:* | tail -40' || true
-echo "Netflix title link test (Below): the TV should open the title page, not Netflix's home."
-tv 'am start -a android.intent.action.VIEW -d https://www.netflix.com/title/81652677 -p com.netflix.ninja' || true
+# The Netflix title link was tested on 2026-10-27 (works on a clean start); no need to open Netflix on every install.
+tv 'input keyevent KEYCODE_HOME' >/dev/null || true
