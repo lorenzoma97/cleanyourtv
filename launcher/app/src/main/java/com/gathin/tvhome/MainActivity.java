@@ -2170,6 +2170,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private void buildShelfCards() {
         List<ContentShelf.Item> items = shelfItems;
         heroCards.removeAllViews();
+        heroCardsScroll.scrollTo(0, 0);   // the row is shared by every app: start from its beginning
         int w = Math.round(96 * density), h = Math.round(54 * density), pad = Math.round(2 * density);
         for (int i = 0; i < items.size(); i++) {
             int index = i;
