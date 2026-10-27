@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Fork lorenzoma97: dark translucent "glass" behind the clock and the weather, with a hairline edge (Apple-like
-     material; the TV cannot blur what is behind a view cheaply, so it is a tint that still reads over any picture). -->
-<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-    <corners android:radius="18dp" />
-    <solid android:color="#6B0E0F14" />
-    <stroke android:width="1dp" android:color="#1FFFFFFF" />
-</shape>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient android:angle="270" android:startColor="#F22A2A2E" android:endColor="#F5161618" />
+            <stroke android:width="1dp" android:color="#33FFFFFF" />
+            <corners android:radius="20dp" />
+        </shape>
+    </item>
+</layer-list>
