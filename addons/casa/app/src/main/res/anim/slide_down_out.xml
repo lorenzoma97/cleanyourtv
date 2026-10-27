@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Back up to the apps: the section slides away downwards, like scrolling back to the top of Home. -->
+<set xmlns:android="http://schemas.android.com/apk/res/android" android:interpolator="@android:interpolator/decelerate_cubic">
+    <translate android:fromYDelta="0" android:toYDelta="100%" android:duration="380" />
+    <alpha android:fromAlpha="1" android:toAlpha="0.4" android:duration="380" />
+</set>

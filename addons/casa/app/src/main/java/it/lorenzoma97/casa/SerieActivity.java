@@ -1,6 +1,7 @@
 package it.lorenzoma97.casa;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.graphics.Bitmap;
@@ -9,7 +10,10 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.KeyEvent;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.animation.DecelerateInterpolator;
 import android.view.animation.LinearInterpolator;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -21,59 +25,50 @@ import org.json.JSONObject;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * "Serie a caso": pick a genre, get one series drawn from the best of that genre on our services.
- * Guarda opens it (the Netflix title directly, the other services' app), Gia vista removes it for good,
- * Un'altra skips it for now. Holding Guarda opens the trailer in YouTube.
+ * "Scopri una nuova serie", the lower section of Home: the launcher opens it when focus goes down from the last row
+ * of apps, and Up from the genres slides back. Five series drawn from the best of the chosen genre on our services,
+ * shown as cards; the focused one fills the screen with its logo, badges and plot. OK plays it (Netflix opens the
+ * title itself), holding OK offers the trailer or "gia vista" (never proposed again), "Pesca altre" draws five new.
  */
 public class SerieActivity extends Activity {
+    private static final int PICKS = 5;
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
     private final Random random = new Random();
-    private final Set<Long> skipped = new HashSet<>();
     private final List<TextView> pills = new ArrayList<>();
+    private final List<View> cards = new ArrayList<>();
+    private final Map<Long, JSONObject> details = new HashMap<>();
+    private List<Long> picks = new ArrayList<>();
     private JSONObject content, pool;
-    private String genre;          // null = Tutte
-    private long current = -1;
-    private JSONObject currentDetails;
-    private int drawToken;
+    private String genre;              // null = Tutte
+    private long shown = -1;           // the series in the head and behind it
+    private int token;
+    private boolean landing;           // the next head update plays the "thrown die" entry
 
-    private ImageView backdrop;
-    private TextView title, overview, hint;
+    private ImageView backdrop, logo;
+    private TextView title, overview;
     private LinearLayout chips;
-    private View buttons;
 
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         setContentView(R.layout.activity_serie);
         backdrop = findViewById(R.id.backdrop);
+        logo = findViewById(R.id.logo);
         title = findViewById(R.id.title);
-        chips = findViewById(R.id.chips);
         overview = findViewById(R.id.overview);
-        hint = findViewById(R.id.hint);
-        buttons = findViewById(R.id.buttons);
+        chips = findViewById(R.id.chips);
         title.setText(R.string.loading);
-        findViewById(R.id.watch).setOnClickListener(v -> watch());
-        findViewById(R.id.watch).setOnLongClickListener(v -> {
-            trailer();
-            return true;
-        });
-        findViewById(R.id.seen).setOnClickListener(v -> {
-            if (current > 0) Store.markSeen(this, current);
-            draw();
-        });
-        findViewById(R.id.another).setOnClickListener(v -> {
-            if (current > 0) skipped.add(current);
-            draw();
-        });
+        buildCards();
         RefreshJob.schedule(this);
         io.execute(() -> {
             JSONObject c = Shelf.content(this, false);
@@ -87,6 +82,25 @@ public class SerieActivity extends Activity {
         super.onDestroy();
     }
 
+    @Override
+    public void finish() {
+        super.finish();
+        overridePendingTransition(R.anim.hold, R.anim.slide_down_out);
+    }
+
+    /** Up from the genres goes back to the apps, like scrolling back to the top of Home. */
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent e) {
+        if (e.getAction() == KeyEvent.ACTION_DOWN && e.getKeyCode() == KeyEvent.KEYCODE_DPAD_UP) {
+            View f = getCurrentFocus();
+            if (f != null && pills.contains(f)) {
+                finish();
+                return true;
+            }
+        }
+        return super.dispatchKeyEvent(e);
+    }
+
     private void onContent(JSONObject c) {
         if (isDestroyed()) return;
         content = c;
@@ -97,95 +111,183 @@ public class SerieActivity extends Activity {
         }
         LinearLayout row = findViewById(R.id.genres);
         addPill(row, getString(R.string.all_genres), null);
-        for (Pool.Genre g : Pool.genres(pool)) addPill(row, g.label + "  " + g.count, g.code);
-        pills.get(0).requestFocus();
-        draw();
+        for (Pool.Genre g : Pool.genres(pool)) addPill(row, g.label, g.code);
+        draw(null);
+        cards.get(0).requestFocus();
     }
 
     private void addPill(LinearLayout row, String label, String code) {
-        TextView p = new TextView(this, null, 0, R.style.CasaPill);   // defStyleRes: background, padding, colours
+        TextView p = new TextView(this, null, 0, R.style.CasaPill);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT);
-        lp.setMarginEnd((int) (10 * getResources().getDisplayMetrics().density));
+        lp.setMarginEnd(dp(8));
         p.setLayoutParams(lp);
         p.setText(label);
         p.setSelected(code == null);
+        p.setNextFocusDownId(View.NO_ID);
         p.setOnClickListener(v -> {
             genre = code;
             for (TextView x : pills) x.setSelected(x == p);
-            draw();
-            findViewById(R.id.watch).requestFocus();
+            draw(null);
+            cards.get(0).requestFocus();
         });
         pills.add(p);
         row.addView(p);
     }
 
-    /** Draws the next series of the current genre and shows it once its details and picture are in. */
-    private void draw() {
+    private void buildCards() {
+        LinearLayout row = findViewById(R.id.cards);
+        for (int i = 0; i <= PICKS; i++) {
+            View card = LayoutInflater.from(this).inflate(R.layout.card, row, false);
+            final int slot = i;
+            if (i == PICKS) {
+                card.findViewById(R.id.draw).setVisibility(View.VISIBLE);
+                card.findViewById(R.id.svc).setVisibility(View.GONE);
+                card.setBackgroundResource(R.drawable.card_draw);
+                card.setOnClickListener(v -> draw(null));
+            } else {
+                card.setOnClickListener(v -> watch(slot));
+                card.setOnLongClickListener(v -> {
+                    menu(slot);
+                    return true;
+                });
+            }
+            card.setOnFocusChangeListener((v, focused) -> {
+                v.animate().scaleX(focused ? 1.08f : 1f).scaleY(focused ? 1.08f : 1f).setDuration(160).start();
+                v.setElevation(focused ? dp(8) : 0);
+                if (focused && slot < picks.size()) showHead(picks.get(slot));
+            });
+            cards.add(card);
+            row.addView(card);
+        }
+    }
+
+    /** Five new picks for the genre (keepOthers: replace only that slot, after "gia vista"). */
+    private void draw(Integer slot) {
         if (pool == null) return;
-        long id = Pool.next(pool, genre, Store.seen(this), skipped, random);
-        int token = ++drawToken;
-        if (id < 0) {
-            current = -1;
-            backdrop.animate().alpha(0f).setDuration(300).start();
+        HashSet<Long> avoid = new HashSet<>(picks);
+        if (slot == null) {
+            picks = Pool.pick(pool, genre, Store.seen(this), avoid, PICKS, random);
+            landing = true;
+        } else {
+            List<Long> one = Pool.pick(pool, genre, Store.seen(this), avoid, 1, random);
+            if (one.isEmpty()) picks.remove((int) slot);
+            else picks.set(slot, one.get(0));
+        }
+        int t = ++token;
+        for (int i = 0; i < PICKS; i++) {
+            View card = cards.get(i);
+            card.setVisibility(i < picks.size() ? View.VISIBLE : View.INVISIBLE);
+            card.setFocusable(i < picks.size());
+            if (i >= picks.size()) continue;
+            if (slot != null && i != slot) continue;
+            fillCard(card, picks.get(i), t);
+        }
+        if (picks.isEmpty()) {
+            shown = -1;
             title.setText(R.string.all_seen);
+            logo.setVisibility(View.GONE);
+            title.setVisibility(View.VISIBLE);
             chips.removeAllViews();
             overview.setText("");
-            buttons.setVisibility(View.INVISIBLE);
-            hint.setVisibility(View.INVISIBLE);
+            backdrop.animate().alpha(0f).setDuration(300).start();
             return;
         }
+        View focus = getCurrentFocus();
+        int focused = cards.indexOf(focus);
+        showHead(picks.get(focused >= 0 && focused < picks.size() ? focused : 0));
+    }
+
+    private void fillCard(View card, long id, int t) {
+        ((TextView) card.findViewById(R.id.name)).setText("");
+        ((ImageView) card.findViewById(R.id.img)).setImageDrawable(null);
+        JSONObject item = Pool.item(pool, id);
+        ((TextView) card.findViewById(R.id.svc)).setText(serviceName(Pool.service(item)));
+        int width = dp(260);
         io.execute(() -> {
-            JSONObject d = Tmdb.details(this, id);
-            Bitmap bmp = null;
+            JSONObject d = details(id);
+            Bitmap thumb = null;
             String path = d == null ? null : Tmdb.backdrop(d);
             if (path != null) {
                 try {
-                    File f = Tmdb.image(this, "pool", path, "w1280");
-                    Store.trim(Store.dir(this, "pool"), 20L * 1024 * 1024);
-                    bmp = decode(f);
+                    thumb = decode(Tmdb.image(this, "pool", path, "w780"), width);
                 } catch (Exception ignored) {
                 }
             }
-            Bitmap picture = bmp;
+            Bitmap img = thumb;
             main.post(() -> {
-                if (token != drawToken || isDestroyed()) return;
-                show(id, d, picture);
+                if (t != token || isDestroyed()) return;
+                ((TextView) card.findViewById(R.id.name)).setText(d == null ? "" : d.optString("name"));
+                ((ImageView) card.findViewById(R.id.img)).setImageBitmap(img);
             });
         });
     }
 
-    private void show(long id, JSONObject d, Bitmap picture) {
-        current = id;
-        currentDetails = d;
-        JSONObject item = Pool.item(pool, id);
-        title.setText(d == null ? "#" + id : d.optString("name"));
-        fillChips(d, item);
-        overview.setText(d == null ? "" : d.optString("overview"));
-        buttons.setVisibility(View.VISIBLE);
-        hint.setVisibility(View.VISIBLE);
-        // The draw "lands" like a thrown die: a short spin and grow, then still.
-        title.animate().cancel();
-        title.setPivotX(0f);
-        title.setPivotY(title.getHeight() / 2f);
-        title.setRotation(-14f);
-        title.setScaleX(0.6f);
-        title.setScaleY(0.6f);
-        title.setAlpha(0.2f);
-        title.animate().rotation(0f).scaleX(1f).scaleY(1f).alpha(1f).setDuration(600)
-                .setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).start();
-        backdrop.animate().cancel();
-        backdrop.setImageBitmap(picture);
-        backdrop.setScaleX(1f);
-        backdrop.setScaleY(1f);
-        backdrop.setAlpha(0f);
-        // Slow push-in over the picture instead of a video: the "cinema" feel without the RAM.
-        backdrop.animate().alpha(picture == null ? 0f : 0.9f).setDuration(600).withEndAction(() ->
-                backdrop.animate().scaleX(1.07f).scaleY(1.07f).setDuration(20000).setInterpolator(new LinearInterpolator()).start()
-        ).start();
+    /** The focused series behind everything, with its logo (or name), badges and plot. */
+    private void showHead(long id) {
+        if (id == shown && !landing) return;
+        shown = id;
+        boolean spin = landing;
+        landing = false;
+        int w = getResources().getDisplayMetrics().widthPixels;
+        int logoW = dp(440);
+        io.execute(() -> {
+            JSONObject d = details(id);
+            Bitmap big = null, lg = null;
+            if (d != null) {
+                try {
+                    String path = Tmdb.backdrop(d);
+                    if (path != null) big = decode(Tmdb.image(this, "pool", path, "w1280"), w);
+                    String lp = Tmdb.logo(d);
+                    if (lp != null) lg = decode(Tmdb.image(this, "pool", lp, "w500"), logoW);
+                } catch (Exception ignored) {
+                }
+            }
+            Store.trim(Store.dir(this, "pool"), 40L * 1024 * 1024);
+            Bitmap picture = big, logoBmp = lg;
+            main.post(() -> {
+                if (id != shown || isDestroyed()) return;
+                head(d, Pool.item(pool, id), picture, logoBmp, spin);
+            });
+        });
     }
 
-    /** Year, seasons, two genres, the rating (amber) and the services (outlined), as small boxes under the title. */
+    private void head(JSONObject d, JSONObject item, Bitmap picture, Bitmap logoBmp, boolean spin) {
+        if (logoBmp != null) {
+            logo.setImageBitmap(logoBmp);
+            logo.setVisibility(View.VISIBLE);
+            title.setVisibility(View.GONE);
+        } else {
+            logo.setVisibility(View.GONE);
+            title.setVisibility(View.VISIBLE);
+            title.setText(d == null ? "" : d.optString("name"));
+        }
+        fillChips(d, item);
+        overview.setText(d == null ? "" : d.optString("overview"));
+        View hero = logoBmp != null ? logo : title;
+        if (spin) {
+            // The draw "lands" like a thrown die: a short spin and grow, then still.
+            hero.setPivotX(0f);
+            hero.setPivotY(hero.getHeight() / 2f);
+            hero.setRotation(-14f);
+            hero.setScaleX(0.6f);
+            hero.setScaleY(0.6f);
+            hero.setAlpha(0.2f);
+            hero.animate().rotation(0f).scaleX(1f).scaleY(1f).alpha(1f).setDuration(600)
+                    .setInterpolator(new DecelerateInterpolator(2f)).start();
+        }
+        backdrop.animate().cancel();
+        backdrop.animate().alpha(0f).setDuration(backdrop.getAlpha() > 0 ? 220 : 0).withEndAction(() -> {
+            backdrop.setImageBitmap(picture);
+            backdrop.setScaleX(1f);
+            backdrop.setScaleY(1f);
+            backdrop.animate().alpha(picture == null ? 0f : 0.92f).setDuration(600).withEndAction(() ->
+                    backdrop.animate().scaleX(1.06f).scaleY(1.06f).setDuration(20000).setInterpolator(new LinearInterpolator()).start()
+            ).start();
+        }).start();
+    }
+
+    /** Year, seasons, two genres, the rating (amber) and the services (outlined), as small boxes. */
     private void fillChips(JSONObject d, JSONObject item) {
         chips.removeAllViews();
         if (d != null) {
@@ -196,26 +298,22 @@ public class SerieActivity extends Activity {
         }
         JSONArray g = item == null ? null : item.optJSONArray("g");
         JSONObject labels = pool.optJSONObject("genres");
-        for (int i = 0, n = 0; g != null && i < g.length() && n < 2; i++, n++) {
+        for (int i = 0; g != null && i < g.length() && i < 2; i++) {
             JSONObject x = labels == null ? null : labels.optJSONObject(g.optString(i));
             addChip(x == null ? g.optString(i) : x.optString("label"), R.drawable.chip, 0xFFFFFFFF);
         }
         if (d != null && d.optDouble("vote_average", 0) > 0) {
             addChip(String.format(java.util.Locale.ITALY, "★ %.1f", d.optDouble("vote_average")), R.drawable.chip_amber, 0xFF160F02);
         }
-        JSONObject services = content == null ? null : content.optJSONObject("services");
         JSONArray s = item == null ? null : item.optJSONArray("s");
-        for (int i = 0; s != null && i < s.length(); i++) {
-            JSONObject svc = services == null ? null : services.optJSONObject(s.optString(i));
-            addChip(svc == null ? s.optString(i) : svc.optString("name"), R.drawable.chip_outline, 0xFFFFFFFF);
-        }
+        for (int i = 0; s != null && i < s.length(); i++) addChip(serviceName(s.optString(i)), R.drawable.chip_outline, 0xFFFFFFFF);
     }
 
     private void addChip(String text, int background, int color) {
         TextView c = new TextView(this, null, 0, R.style.CasaChip);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT);
-        lp.setMarginEnd((int) (8 * getResources().getDisplayMetrics().density));
+        lp.setMarginEnd(dp(8));
         c.setLayoutParams(lp);
         c.setBackgroundResource(background);
         c.setTextColor(color);
@@ -223,8 +321,26 @@ public class SerieActivity extends Activity {
         chips.addView(c);
     }
 
-    private void watch() {
-        JSONObject item = Pool.item(pool, current);
+    private void menu(int slot) {
+        if (slot >= picks.size()) return;
+        long id = picks.get(slot);
+        String[] items = {getString(R.string.menu_trailer), getString(R.string.menu_seen), getString(R.string.menu_cancel)};
+        new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                .setTitle(details.containsKey(id) ? details.get(id).optString("name") : "")
+                .setItems(items, (dlg, which) -> {
+                    if (which == 0) trailer(id);
+                    else if (which == 1) {
+                        Store.markSeen(this, id);
+                        draw(slot);
+                        cards.get(Math.min(slot, Math.max(0, picks.size() - 1))).requestFocus();
+                    }
+                })
+                .show();
+    }
+
+    private void watch(int slot) {
+        if (slot >= picks.size()) return;
+        JSONObject item = Pool.item(pool, picks.get(slot));
         String svc = Pool.service(item);
         JSONObject services = content == null ? null : content.optJSONObject("services");
         JSONObject s = services == null || svc == null ? null : services.optJSONObject(svc);
@@ -233,8 +349,10 @@ public class SerieActivity extends Activity {
         String nf = item.isNull("nf") ? null : item.optString("nf", null);
         if ("netflix".equals(svc) && nf != null) {
             try {
+                // A clean task: a Netflix already running ignores the link and resumes the last series.
                 startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.netflix.com/title/" + nf))
-                        .setPackage(pkg).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                        .setPackage(pkg).putExtra("source", "30")
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK));
                 return;
             } catch (ActivityNotFoundException ignored) {
                 // Netflix without the title link: open the app instead
@@ -249,25 +367,51 @@ public class SerieActivity extends Activity {
         startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
     }
 
-    private void trailer() {
-        String key = currentDetails == null ? null : Tmdb.trailer(currentDetails);
+    private void trailer(long id) {
+        JSONObject d = details.get(id);
+        String key = d == null ? null : Tmdb.trailer(d);
         if (key == null) {
             Toast.makeText(this, R.string.no_trailer, Toast.LENGTH_SHORT).show();
             return;
         }
-        Intent yt = new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/watch?v=" + key))
-                .setPackage("com.google.android.youtube.tv").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         try {
-            startActivity(yt);
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/watch?v=" + key))
+                    .setPackage("com.google.android.youtube.tv").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
         } catch (ActivityNotFoundException e) {
             Toast.makeText(this, R.string.no_trailer, Toast.LENGTH_SHORT).show();
         }
     }
 
-    /** RGB_565 at about screen width: a 1280 px backdrop is ~1.8 MB in memory instead of ~3.7 MB. */
-    private Bitmap decode(File f) {
+    /** Details from memory, else from Tmdb's week-long cache or the network (off the main thread). */
+    private JSONObject details(long id) {
+        synchronized (details) {
+            if (details.containsKey(id)) return details.get(id);
+        }
+        JSONObject d = Tmdb.details(this, id);
+        synchronized (details) {
+            details.put(id, d);
+        }
+        return d;
+    }
+
+    private String serviceName(String svc) {
+        JSONObject services = content == null ? null : content.optJSONObject("services");
+        JSONObject s = services == null || svc == null ? null : services.optJSONObject(svc);
+        return s == null ? (svc == null ? "" : svc) : s.optString("name");
+    }
+
+    /** Full colour (no banding on the dark gradients), sampled down to about maxWidth. */
+    private Bitmap decode(File f, int maxWidth) {
+        BitmapFactory.Options b = new BitmapFactory.Options();
+        b.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(f.getPath(), b);
         BitmapFactory.Options o = new BitmapFactory.Options();
-        o.inPreferredConfig = Bitmap.Config.RGB_565;
+        o.inSampleSize = 1;
+        while (b.outWidth / (o.inSampleSize * 2) >= maxWidth) o.inSampleSize *= 2;
         return BitmapFactory.decodeFile(f.getPath(), o);
+    }
+
+    private int dp(int v) {
+        return Math.round(v * getResources().getDisplayMetrics().density);
     }
 }

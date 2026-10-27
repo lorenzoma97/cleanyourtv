@@ -39,6 +39,7 @@ public class HeroProvider extends ContentProvider {
     public Cursor query(Uri uri, String[] projection, String selection, String[] args, String sortOrder) {
         List<String> seg = uri.getPathSegments();
         if (seg.size() == 1 && "weather".equals(seg.get(0))) return weather();
+        if (seg.size() == 1 && "art".equals(seg.get(0))) return art(uri.getQueryParameter("t"));
         MatrixCursor c = new MatrixCursor(COLUMNS);
         if (seg.size() != 2 || !"items".equals(seg.get(0))) return c;
         File f = Store.file(getContext(), "shelf.json");
@@ -57,6 +58,29 @@ public class HeroProvider extends ContentProvider {
             }
         } catch (Exception ignored) {
             // a broken shelf.json means an empty shelf, never a crash in the launcher's process
+        }
+        return c;
+    }
+
+    /**
+     * Clean TMDB pictures for a title another app published ("Riprendi"): Netflix's own Watch Next art has its logo
+     * and a TOP 10 badge printed on it, which clash with the shelf's text. One row {image, logo}, or none.
+     */
+    private Cursor art(String title) {
+        MatrixCursor c = new MatrixCursor(new String[]{"image", "logo", "plot"});
+        long id = Tmdb.findSeries(getContext(), title);
+        if (id <= 0) return c;
+        JSONObject d = Tmdb.details(getContext(), id);
+        String path = d == null ? null : Tmdb.backdrop(d);
+        if (path == null) return c;
+        try {
+            String image = "content://" + AUTHORITY + "/img/" + Tmdb.image(getContext(), "img", path, "w1280").getName();
+            String logoPath = Tmdb.logo(d);
+            String logo = null;
+            if (logoPath != null) logo = "content://" + AUTHORITY + "/img/" + Tmdb.image(getContext(), "img", logoPath, "w500").getName();
+            c.addRow(new Object[]{image, logo, Tmdb.shortPlot(d.optString("overview"), 170)});
+        } catch (Exception ignored) {
+            // no clean picture: the launcher keeps the app's own
         }
         return c;
     }

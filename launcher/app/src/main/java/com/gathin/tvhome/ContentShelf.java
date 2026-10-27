@@ -39,6 +39,8 @@ final class ContentShelf {
         String plot, tag, season, resume;
         int top;
         float progress = -1f;
+        /** Came from Casa: a list without any is cached only briefly (Casa may still be on its first download). */
+        boolean fromCasa;
 
         Item(String title, String line, Uri image, Intent action) {
             this.title = title;
@@ -141,9 +143,31 @@ final class ContentShelf {
         order.sort((a, b) -> Long.compare(b[0], a[0]));
         for (long[] o : order) {
             if (out.size() >= MAX_RESUME) break;
-            out.add(rows.get((int) o[1]));
+            out.add(cleanArt(ctx, rows.get((int) o[1])));
         }
         return out;
+    }
+
+    /**
+     * Swaps an app's own Watch Next picture for Casa's clean TMDB backdrop and logo of the same series: Netflix
+     * prints its logo and a TOP 10 badge on its art, which clashed with the shelf's own title and badges.
+     */
+    private static Item cleanArt(Context ctx, Item in) {
+        Uri uri = Uri.parse("content://" + CASA + "/art").buildUpon().appendQueryParameter("t", in.title).build();
+        try (Cursor c = ctx.getContentResolver().query(uri, null, null, null, null)) {
+            if (c == null || !c.moveToFirst()) return in;
+            String image = column(c, "image");
+            if (blank(image)) return in;
+            Item out = new Item(in.title, in.line, Uri.parse(image), in.action);
+            String logo = column(c, "logo");
+            if (!blank(logo)) out.logo = Uri.parse(logo);
+            out.plot = column(c, "plot");
+            out.resume = in.resume;
+            out.progress = in.progress;
+            return out;
+        } catch (RuntimeException e) {
+            return in;   // Casa missing or offline: the app's own picture
+        }
     }
 
     /** "S2E5", else the episode title, else null. */
@@ -183,6 +207,7 @@ final class ContentShelf {
                 item.season = column(c, "season");
                 int top = c.getColumnIndex("top");
                 item.top = top >= 0 ? c.getInt(top) : 0;
+                item.fromCasa = true;
                 out.add(item);
             }
         } catch (RuntimeException e) {
@@ -214,7 +239,7 @@ final class ContentShelf {
         }
     }
 
-    /** RGB_565, sampled down to about maxWidth: one shelf picture costs ~1.8 MB, not 8 MB. Null on failure. */
+    /** Sampled down to about maxWidth (the UI plane is 1280x720 on the Metz: ~3.7 MB a picture). Null on failure. */
     static Bitmap decode(Context ctx, Uri uri, int maxWidth) {
         ContentResolver r = ctx.getContentResolver();
         try {
@@ -225,7 +250,7 @@ final class ContentShelf {
             }
             if (bounds.outWidth <= 0) return null;
             BitmapFactory.Options o = new BitmapFactory.Options();
-            o.inPreferredConfig = Bitmap.Config.RGB_565;
+            // Full colour: RGB_565 banded the dark gradients of film stills (looked "pixelated" on the Metz).
             o.inSampleSize = 1;
             while (bounds.outWidth / (o.inSampleSize * 2) >= maxWidth) o.inSampleSize *= 2;
             try (InputStream in = r.openInputStream(uri)) {

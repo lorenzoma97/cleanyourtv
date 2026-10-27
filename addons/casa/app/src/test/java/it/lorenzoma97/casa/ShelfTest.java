@@ -35,7 +35,7 @@ public class ShelfTest {
     @Test
     public void netflixLink() {
         assertEquals("intent://www.netflix.com/title/81652677#Intent;scheme=https;action=android.intent.action.VIEW;"
-                + "package=com.netflix.ninja;launchFlags=0x10000000;end", Shelf.netflixIntent("81652677"));
+                + "package=com.netflix.ninja;launchFlags=0x10008000;S.source=30;end", Shelf.netflixIntent("81652677"));
         assertNull(Shelf.netflixIntent(null));
         assertNull(Shelf.netflixIntent("81652677;launchFlags=0"));   // never splice anything but digits
     }

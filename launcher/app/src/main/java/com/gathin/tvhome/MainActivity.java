@@ -485,7 +485,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             public void onChildViewDetachedFromWindow(@NonNull View v) {
             }
         });
-        if (dockRow) grid.addItemDecoration(new DockDecoration(COLUMNS, density, cinematic, cfg.alwaysShowNames, cfg.dockOpacity, cfg.dockGlass));
+        // Fork: on the cinematic shelf the band holds every app row, one panel for all apps (dock + the rest).
+        if (dockRow) grid.addItemDecoration(new DockDecoration(cinematic ? Integer.MAX_VALUE : COLUMNS, density, cinematic,
+                cfg.alwaysShowNames, cfg.dockOpacity, cfg.dockGlass));
         // Reduced motion: the tiles are simply there, with no entrance (reloadApps skips it there too).
         if (animations && !reducedMotion) {
             grid.setLayoutAnimation(new LayoutAnimationController(
@@ -1627,9 +1629,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 items = Collections.emptyList();   // never let the shelf take Home down
             }
             List<ContentShelf.Item> found = items;
+            boolean complete = false;
+            for (ContentShelf.Item it : items) complete |= it.fromCasa;
+            // Without Casa's items (first download still running, or an app Casa does not cover) ask again in a
+            // minute instead of ten: on the first day Netflix showed only its two "Riprendi" for ten minutes.
+            long age = complete ? 0 : SHELF_CACHE_MS - 60_000L;
             handler.post(() -> {
                 shelfCache.put(pkg, found);
-                shelfLoadedAt.put(pkg, SystemClock.elapsedRealtime());
+                shelfLoadedAt.put(pkg, SystemClock.elapsedRealtime() - age);
                 if (token == shelfToken) beginShelf(token, found);
             });
         });
@@ -1949,6 +1956,20 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             heroArt.setScaleY(1f);
             heroArt.setScaleType(ImageView.ScaleType.FIT_XY);   // the app's blurred art is meant to be stretched
             heroArtKey = null;
+        }
+    }
+
+    /**
+     * "Scopri una nuova serie" (Casa add-on) as the lower part of Home: it slides up from the bottom when focus goes
+     * down from the last row of apps, and Up from its genres slides it back. Nothing happens without Casa.
+     */
+    private void openDiscover() {
+        try {
+            startActivity(new Intent().setClassName("it.lorenzoma97.casa", "it.lorenzoma97.casa.SerieActivity")
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            overridePendingTransition(R.anim.slide_up_in, R.anim.hold_still);
+        } catch (ActivityNotFoundException | SecurityException e) {
+            // no Casa: the last row simply stays where it is
         }
     }
 
@@ -2359,6 +2380,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             int lastRowStart = ((count - 1) / COLUMNS) * COLUMNS;
             if (position >= lastRowStart) {
                 if (adapter.isLibraryAt(count)) focusLibrary();
+                else openDiscover();   // fork: Home's lower section, "Scopri una nuova serie"
                 return true;
             }
             target = Math.min(position + COLUMNS, count - 1);

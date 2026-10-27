@@ -8,9 +8,9 @@
     "it.rainet.androidtv",
     "com.cltv.hybrid"
   ],
-  "hidden_apps": ["org.liskovsoft.androidtv.rukeyboard", "com.android.tv.settings"],
+  "hidden_apps": ["org.liskovsoft.androidtv.rukeyboard", "com.android.tv.settings", "it.lorenzoma97.casa"],
   "columns": 7,
-  "rows_below_dock": 0,
+  "rows_below_dock": 1,
   "show_inputs_pill": false,
   "show_network_pill": false,
   "icon_only_buttons": true,

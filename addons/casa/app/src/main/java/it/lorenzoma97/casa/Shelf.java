@@ -74,11 +74,15 @@ final class Shelf {
         return "new_series".equals(kind) ? "Nuova serie" : "Nuova stagione " + season;
     }
 
-    /** Opens the title in the Netflix app (VIEW https://www.netflix.com/title/<id>, package-scoped). */
+    /**
+     * Opens the title in the Netflix app (VIEW https://www.netflix.com/title/<id>, package-scoped). NEW_TASK|CLEAR_TASK
+     * and source=30: on the Metz, a Netflix already running ignored the link and resumed the last series; started
+     * clean it opened the title (tested 2026-10-27).
+     */
     static String netflixIntent(String netflixId) {
         if (netflixId == null || !netflixId.matches("\\d+")) return null;
         return "intent://www.netflix.com/title/" + netflixId
-                + "#Intent;scheme=https;action=android.intent.action.VIEW;package=com.netflix.ninja;launchFlags=0x10000000;end";
+                + "#Intent;scheme=https;action=android.intent.action.VIEW;package=com.netflix.ninja;launchFlags=0x10008000;S.source=30;end";
     }
 
     /** package -> ordered entries, capped, one per series. */

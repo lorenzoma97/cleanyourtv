@@ -113,6 +113,47 @@ final class Tmdb {
         return null;
     }
 
+    /**
+     * The TMDB series for a title another app published (Watch Next): Italian search, exact name first, then the most
+     * popular. Remembered per title for a week, a miss too. -1 when nothing matches or there is no key.
+     */
+    static long findSeries(Context ctx, String title) {
+        if (title == null || title.trim().isEmpty()) return -1;
+        String norm = java.text.Normalizer.normalize(title.trim().toLowerCase(), java.text.Normalizer.Form.NFD)
+                .replaceAll("[^a-z0-9]+", " ").trim();
+        File f = new File(Store.dir(ctx, "tmdb"), "find_" + Integer.toHexString(norm.hashCode()) + ".txt");
+        if (Store.fresh(f, DETAILS_TTL)) {
+            try {
+                return Long.parseLong(Store.read(f).trim());
+            } catch (Exception ignored) {
+            }
+        }
+        String key = Store.tmdbKey(ctx);
+        if (key == null) return -1;
+        long found = -1;
+        try {
+            JSONArray res = new JSONObject(new String(Net.get("https://api.themoviedb.org/3/search/tv?language=it-IT&query="
+                    + java.net.URLEncoder.encode(title.trim(), "UTF-8") + "&api_key=" + key), StandardCharsets.UTF_8))
+                    .optJSONArray("results");
+            double best = -1;
+            for (int i = 0; res != null && i < res.length(); i++) {
+                JSONObject x = res.optJSONObject(i);
+                if (x == null || x.isNull("backdrop_path")) continue;
+                String n1 = java.text.Normalizer.normalize(x.optString("name").toLowerCase(), java.text.Normalizer.Form.NFD).replaceAll("[^a-z0-9]+", " ").trim();
+                String n2 = java.text.Normalizer.normalize(x.optString("original_name").toLowerCase(), java.text.Normalizer.Form.NFD).replaceAll("[^a-z0-9]+", " ").trim();
+                double score = (norm.equals(n1) || norm.equals(n2) ? 100000 : 0) + x.optDouble("popularity", 0);
+                if (score > best) {
+                    best = score;
+                    found = x.optLong("id");
+                }
+            }
+            Store.write(f, Long.toString(found));
+        } catch (Exception e) {
+            android.util.Log.w("Casa", "find " + title + ": " + e);
+        }
+        return found;
+    }
+
     /** Local file for a TMDB image path, downloaded once at the given size (w780, w1280...). */
     static File image(Context ctx, String dirName, String path, String size) throws IOException {
         String name = size + "_" + path.replaceAll("[^A-Za-z0-9._-]", "");

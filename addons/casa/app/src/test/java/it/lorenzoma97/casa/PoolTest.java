@@ -48,6 +48,19 @@ public class PoolTest {
     }
 
     @Test
+    public void fivePicksNeverWatchedAndNoDuplicates() throws Exception {
+        JSONObject p = pool();
+        Set<Long> seen = new HashSet<>(Arrays.asList(2L));
+        List<Long> picks = Pool.pick(p, null, seen, new HashSet<>(), 5, new Random(3));
+        assertEquals(3, picks.size());                       // 4 in "all", 1 watched
+        assertTrue(!picks.contains(2L));
+        assertEquals(new HashSet<>(picks).size(), picks.size());
+        // "Pesca altre" avoids the ones on screen while there are others to show
+        List<Long> next = Pool.pick(p, "thriller", seen, new HashSet<>(Arrays.asList(3L)), 1, new Random(3));
+        assertEquals(Arrays.asList(5L), next);
+    }
+
+    @Test
     public void guardaPrefersNetflix() throws Exception {
         JSONObject p = pool();
         assertEquals("netflix", Pool.service(Pool.item(p, 3)));

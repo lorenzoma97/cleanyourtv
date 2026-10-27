@@ -71,6 +71,14 @@ final class Pool {
         return c.isEmpty() ? -1 : c.get(random.nextInt(c.size()));
     }
 
+    /** n different titles of the genre, never one already watched, in random order (fewer when the genre runs out). */
+    static List<Long> pick(JSONObject pool, String genre, Set<Long> seen, Set<Long> avoid, int n, Random random) {
+        List<Long> c = candidates(pool, genre, seen, avoid);
+        if (c.size() < n) c = candidates(pool, genre, seen, java.util.Collections.emptySet());   // repeats over gaps
+        Collections.shuffle(c, random);
+        return new ArrayList<>(c.subList(0, Math.min(n, c.size())));
+    }
+
     /** The pool entry for an id: services "s", genres "g", Netflix id "nf". */
     static JSONObject item(JSONObject pool, long id) {
         JSONArray items = pool == null ? null : pool.optJSONArray("items");
