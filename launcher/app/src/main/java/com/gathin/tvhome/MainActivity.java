@@ -395,6 +395,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         heroProgress = findViewById(R.id.heroProgress);
         heroPlot = findViewById(R.id.heroPlot);
         heroSegs = findViewById(R.id.heroSegs);
+        heroButtons = findViewById(R.id.heroButtons);
+        heroWatch = findViewById(R.id.heroWatch);
+        heroOpen = findViewById(R.id.heroOpen);
+        if (heroButtons != null) setUpShelfDetail();
         // The shelf grows and shrinks with each title: keep it anchored above the dock, never under it.
         hero.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
             if (b - t != ob - ot) placeHero();
@@ -1632,6 +1636,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private float lastDockTop = -1;
     private int weatherMinutes;
     private android.animation.ValueAnimator segRun;
+    /** Fork: Up from the dock opens the title's detail (buttons, longer plot); the app panel slides down, dimmed. */
+    private boolean shelfDetail;
+    private View heroButtons;
+    private TextView heroWatch, heroOpen;
+    private static final int DETAIL_SHIFT_DP = 92;
 
     private void startShelf(int position) {
         String pkg = adapter.packageAt(position);
@@ -1699,7 +1708,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 }
                 shelfFailures = 0;
                 applyShelfItem(item, bmp, logo);
-                if (items.size() > 1) {
+                if (items.size() > 1 && !shelfDetail) {   // the detail changes title only on Left/Right
                     handler.removeCallbacks(shelfTick);
                     handler.postDelayed(shelfTick, SHELF_ROTATE_MS);
                 }
@@ -1788,22 +1797,31 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         if (heroPlot != null) {
             // Decide up front, so the shelf does not flash a plot that is dropped one frame later for lack of room.
-            boolean plot = item.plot != null && !item.plot.trim().isEmpty() && heroRoom() > 182 * density;
+            // The detail has the app panel's room too: up to four lines, which placeHero trims when they do not fit.
+            boolean plot = item.plot != null && !item.plot.trim().isEmpty() && (shelfDetail || heroRoom() > 182 * density);
+            heroPlot.setMaxLines(shelfDetail ? 4 : 2);
             heroPlot.setText(plot ? item.plot : "");
             heroPlot.setVisibility(plot ? View.VISIBLE : View.GONE);
         }
         String app = shelfLabel != null ? shelfLabel : "";
-        String cta = "OK  apri " + app + (item.action == null ? ""
-                : "   ·   tieni premuto OK  " + (item.resume != null || item.progress >= 0 ? "riprendi" : "apri il titolo"));
         heroMeta.setTypeface(android.graphics.Typeface.MONOSPACE);
         heroMeta.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f);
         heroMeta.setLetterSpacing(0.04f);
         heroMeta.setTextColor(0x8CFFFFFF);
-        heroMeta.setText(cta);
+        heroDots.setVisibility(View.GONE);
+        if (shelfDetail) {
+            showDetailButtons(item, app);
+            boolean more = shelfItems != null && shelfItems.size() > 1;
+            heroMeta.setText((more ? "◀ ▶  altri titoli   ·   " : "") + "▼  torna alle app");
+            heroMeta.setVisibility(View.VISIBLE);
+            showSegments();
+            return;
+        }
+        if (heroButtons != null) heroButtons.setVisibility(View.GONE);
+        heroMeta.setText("▲  dettagli   ·   OK  apri " + app);
         // Logo 56 + badges 32 + hint 28 + segments 13 (dp): show only what fits, the badges always.
         float room = heroRoom();
         heroMeta.setVisibility(room > 125 * density ? View.VISIBLE : View.GONE);
-        heroDots.setVisibility(View.GONE);
         if (room > 138 * density) showSegments();
         else if (heroSegs != null) heroSegs.setVisibility(View.GONE);
     }
@@ -1863,7 +1881,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         heroSegs.setVisibility(View.VISIBLE);
         if (running != null) {
             View fill = running;
-            if (!animations) {
+            if (!animations || shelfDetail) {   // the detail does not rotate: the current segment stays full
                 fill.setScaleX(1f);
                 return;
             }
@@ -1910,9 +1928,23 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private void placeHero() {
         if (lastDockTop < 0 || !heroShown) return;
         lastDockTop = dockTopNow();
-        float y = lastDockTop - 32 * density - hero.getHeight();
+        float y = lastDockTop + detailShift() - 32 * density - hero.getHeight();
         float min = heroMinY();
-        if (y < min && shelfShown != null) {
+        if (y < min && shelfShown != null && shelfDetail) {
+            // The detail keeps its buttons: it drops the segments, the hint, then the plot a line at a time.
+            for (View v : new View[]{heroSegs, heroMeta}) {
+                if (v != null && v.getVisibility() == View.VISIBLE) {
+                    v.setVisibility(View.GONE);
+                    return;
+                }
+            }
+            if (heroPlot != null && heroPlot.getVisibility() == View.VISIBLE) {
+                int lines = heroPlot.getLineCount();
+                if (lines > 2) heroPlot.setMaxLines(lines - 1);
+                else heroPlot.setVisibility(View.GONE);
+                return;
+            }
+        } else if (y < min && shelfShown != null) {
             View[] shed = {heroPlot, heroMeta, heroSegs};
             for (View v : shed) {
                 if (v != null && v.getVisibility() == View.VISIBLE) {
@@ -1943,7 +1975,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private float heroRoom() {
         if (lastDockTop < 0) return Float.MAX_VALUE;
         lastDockTop = dockTopNow();
-        return lastDockTop - 32 * density - heroMinY();
+        return lastDockTop + detailShift() - 32 * density - heroMinY();
+    }
+
+    /** How far the app panel sits lower while the detail is open (layout positions do not include it). */
+    private float detailShift() {
+        return shelfDetail ? DETAIL_SHIFT_DP * density : 0f;
     }
 
     /** Bologna now, from the Casa add-on; hidden when Casa is missing or has no reading yet. */
@@ -2003,6 +2040,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     private void stopShelf() {
+        exitShelfDetail(false);   // Home left or the tiles rebuilt with the detail open
         handler.removeCallbacks(shelfTick);
         shelfToken++;
         boolean wasShown = shelfShown != null;
@@ -2079,6 +2117,117 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         } catch (ActivityNotFoundException | SecurityException e) {
             // no Casa: the last row simply stays where it is
         }
+    }
+
+    // ---- shelf detail (fork) ---------------------------------------------------------------------
+
+    /** The detail's two buttons: OK plays or opens; Down/Back return to the apps; Left/Right at the ends change title. */
+    private void setUpShelfDetail() {
+        heroWatch.setOnClickListener(v -> {
+            ContentShelf.Item item = shelfShown;
+            if (item == null || item.action == null) return;
+            try {
+                startActivity(item.action);
+            } catch (ActivityNotFoundException | SecurityException e) {
+                openShelfApp();   // the title link failed: the app itself is the next best thing
+            }
+        });
+        heroOpen.setOnClickListener(v -> openShelfApp());
+        View.OnKeyListener keys = (v, code, event) -> {
+            boolean left = code == KeyEvent.KEYCODE_DPAD_LEFT, right = code == KeyEvent.KEYCODE_DPAD_RIGHT;
+            boolean first = v == heroWatch || heroWatch.getVisibility() != View.VISIBLE;
+            boolean exit = code == KeyEvent.KEYCODE_DPAD_DOWN || code == KeyEvent.KEYCODE_BACK
+                    || code == KeyEvent.KEYCODE_ESCAPE;
+            boolean handled = exit || code == KeyEvent.KEYCODE_DPAD_UP || (left && first) || (right && v == heroOpen);
+            if (!handled || event.getAction() != KeyEvent.ACTION_DOWN || event.getRepeatCount() > 0) return handled;
+            if (exit) exitShelfDetail(true);
+            else if (left || right) stepShelf(left ? -1 : 1);
+            return true;
+        };
+        heroWatch.setOnKeyListener(keys);
+        heroOpen.setOnKeyListener(keys);
+    }
+
+    private void enterShelfDetail() {
+        if (shelfDetail || shelfShown == null) return;
+        shelfDetail = true;
+        handler.removeCallbacks(shelfTick);
+        if (segRun != null) segRun.cancel();
+        moveApps(true, true);
+        showShelfText(shelfShown, shelfLogo);
+        (heroWatch.getVisibility() == View.VISIBLE ? heroWatch : heroOpen).requestFocus();
+        hero.post(this::placeHero);
+        if (animations) {
+            hero.animate().cancel();
+            hero.setAlpha(0.3f);
+            hero.animate().alpha(1f).setDuration(260).start();
+        }
+    }
+
+    /** Back to the apps: focus on the dock tile, the panel slides up, the shelf rotates again. */
+    private void exitShelfDetail(boolean animate) {
+        if (!shelfDetail) return;
+        shelfDetail = false;
+        if (heroWatch.hasFocus() || heroOpen.hasFocus()) focusTile(lastFocused);   // before the buttons go
+        heroButtons.setVisibility(View.GONE);
+        moveApps(false, animate);
+        if (shelfShown == null) return;
+        showShelfText(shelfShown, shelfLogo);
+        hero.post(this::placeHero);
+        handler.removeCallbacks(shelfTick);
+        if (shelfItems != null && shelfItems.size() > 1) handler.postDelayed(shelfTick, SHELF_ROTATE_MS);
+    }
+
+    /** "Guarda" or "Riprendi" when the title has its own link; "Apri <app>" always. */
+    private void showDetailButtons(ContentShelf.Item item, String app) {
+        boolean watch = item.action != null;
+        if (!watch && heroWatch.isFocused()) heroOpen.requestFocus();   // never hide the focused button
+        heroWatch.setText(item.resume != null || item.progress >= 0 ? "▶  Riprendi" : "▶  Guarda il titolo");
+        heroWatch.setVisibility(watch ? View.VISIBLE : View.GONE);
+        heroOpen.setText("Apri " + app);
+        ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) heroOpen.getLayoutParams();
+        lp.setMarginStart(watch ? (int) (12 * density) : 0);
+        heroOpen.setLayoutParams(lp);
+        heroButtons.setVisibility(View.VISIBLE);
+    }
+
+    /** The app panel slides down and dims under the detail, still in view; it comes back up when the detail closes. */
+    private void moveApps(boolean down, boolean animate) {
+        float shift = down ? DETAIL_SHIFT_DP * density : 0f, alpha = down ? 0.5f : 1f;
+        View bar = findViewById(R.id.discoverBar);
+        float barAlpha = down ? 0f : discoverActive ? 1f : 0.85f;
+        grid.animate().cancel();
+        if (bar != null) bar.animate().cancel();
+        // The dimmed panel is drawn once into a layer, not through an offscreen buffer on every frame of the art.
+        if (down) grid.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+        if (!animate || !animations) {
+            grid.setTranslationY(shift);
+            grid.setAlpha(alpha);
+            if (!down) grid.setLayerType(View.LAYER_TYPE_NONE, null);
+            if (bar != null) bar.setAlpha(barAlpha);
+            return;
+        }
+        android.view.ViewPropertyAnimator slide = grid.animate().translationY(shift).alpha(alpha)
+                .setDuration(down ? 320 : 240).setInterpolator(new android.view.animation.DecelerateInterpolator());
+        if (!down) slide.withEndAction(() -> grid.setLayerType(View.LAYER_TYPE_NONE, null));
+        slide.start();
+        if (bar != null) bar.animate().alpha(barAlpha).setDuration(200).start();
+    }
+
+    /** Left/Right at the ends of the buttons: the previous or the next title, without the timer. */
+    private void stepShelf(int dir) {
+        List<ContentShelf.Item> items = shelfItems;
+        if (items == null || items.size() < 2) return;
+        shelfIndex = Math.floorMod(shelfIndex + dir - 1, items.size());   // nextShelfItem adds the one back
+        shelfFailures = 0;
+        nextShelfItem();
+    }
+
+    /** "Apri Netflix": the dock tile's own launch (same intent, Last opened, transition). */
+    private void openShelfApp() {
+        RecyclerView.ViewHolder vh = grid.findViewHolderForAdapterPosition(lastFocused);
+        View card = vh == null ? null : vh.itemView.findViewById(R.id.card);
+        if (card != null) card.performClick();
     }
 
     /** Holding OK on a dock app opens the title its shelf is showing; false lets the tile do its usual long press. */
@@ -2482,7 +2631,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     rtlAppGrid, keyCode == KeyEvent.KEYCODE_DPAD_LEFT);
         }
         if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
-            if (position < COLUMNS) return false;          // dock row: let focus move to the top bar
+            if (position < COLUMNS) {
+                // Fork: on an app whose shelf shows a title, Up opens the title's detail; otherwise the top bar.
+                if (cinematic && shelfShown != null && heroButtons != null
+                        && java.util.Objects.equals(adapter.packageAt(position), shelfPkg)) {
+                    enterShelfDetail();
+                    return true;
+                }
+                return false;                              // dock row: let focus move to the top bar
+            }
             target = position - COLUMNS;
         } else {
             int lastRowStart = ((count - 1) / COLUMNS) * COLUMNS;

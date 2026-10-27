@@ -54,7 +54,7 @@ public class GlassView extends View {
     void setLiquid(boolean on) {
         liquid = on;
         liquidRim.setStyle(Paint.Style.STROKE);
-        liquidRim.setStrokeWidth(Math.max(1f, density));
+        liquidRim.setStrokeWidth(Math.max(1.5f, 1.4f * density));
         shadow.setStyle(Paint.Style.STROKE);
         updateLiquidShaders(getWidth(), getHeight());
         invalidate();
@@ -62,9 +62,9 @@ public class GlassView extends View {
 
     private void updateLiquidShaders(int w, int h) {
         if (!liquid || w == 0 || h == 0) return;
-        liquidFill.setShader(new LinearGradient(0, 0, 0, h, 0x14FFFFFF, 0x03FFFFFF, Shader.TileMode.CLAMP));
-        liquidSheen.setShader(new LinearGradient(0, 0, w * 0.55f, h * 0.6f, 0x2EFFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP));
-        liquidRim.setShader(new LinearGradient(0, 0, 0, h, 0x9EFFFFFF, 0x1FFFFFFF, Shader.TileMode.CLAMP));
+        liquidFill.setShader(new LinearGradient(0, 0, 0, h, 0x24FFFFFF, 0x08FFFFFF, Shader.TileMode.CLAMP));
+        liquidSheen.setShader(new LinearGradient(0, 0, w * 0.55f, h * 0.6f, 0x47FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP));
+        liquidRim.setShader(new LinearGradient(0, 0, 0, h, 0xE0FFFFFF, 0x47FFFFFF, Shader.TileMode.CLAMP));
     }
 
     /** Tints the rim and the outer glow; 0 restores the plain white glass. */
@@ -109,7 +109,7 @@ public class GlassView extends View {
             for (int i = 0; i < rings; i++) {
                 float o = step * (i + 0.5f);
                 float t = 1f - (float) i / rings;
-                shadow.setColor(Math.round(0x46 * t * t) << 24);
+                shadow.setColor(Math.round(0x62 * t * t) << 24);
                 canvas.drawRoundRect(rect.left - o, rect.top - o + drop, rect.right + o, rect.bottom + o + drop,
                         radius + o, radius + o, shadow);
             }

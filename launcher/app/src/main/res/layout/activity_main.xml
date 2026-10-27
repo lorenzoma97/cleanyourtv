@@ -176,6 +176,26 @@
             android:fontFamily="@font/outfit_light"
             android:visibility="gone" />
 
+        <!-- Fork lorenzoma97: detail mode (Up from the dock): play the title, or open the app. -->
+        <LinearLayout
+            android:id="@+id/heroButtons"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:orientation="horizontal"
+            android:clipChildren="false"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/heroWatch"
+                style="@style/HeroButton" />
+
+            <TextView
+                android:id="@+id/heroOpen"
+                style="@style/HeroButton"
+                android:layout_marginStart="12dp" />
+        </LinearLayout>
+
         <!-- Cinematic shelf only: when the app was last opened, and the dock position dots. -->
         <TextView
             android:id="@+id/heroMeta"
