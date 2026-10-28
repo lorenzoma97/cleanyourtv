@@ -246,7 +246,7 @@ public class SerieActivity extends Activity {
                     String path = Tmdb.backdrop(d);
                     if (path != null) big = decode(Tmdb.image(this, "pool", path, "w1280"), w);
                     String lp = Tmdb.logo(d);
-                    if (lp != null) lg = decode(Tmdb.image(this, "pool", lp, "w500"), logoW);
+                    if (lp != null) lg = Tmdb.lightLogo(decode(Tmdb.image(this, "pool", lp, "w500"), logoW));
                 } catch (Exception ignored) {
                 }
             }

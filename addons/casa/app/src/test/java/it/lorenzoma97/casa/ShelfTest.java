@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -99,6 +100,14 @@ public class ShelfTest {
         String plot = Tmdb.shortPlot("Prima frase abbastanza lunga da contare. Seconda frase che non entra nel limite dei caratteri.", 60);
         assertEquals("Prima frase abbastanza lunga da contare.", plot);
         assertTrue(Tmdb.shortPlot("parola ".repeat(40), 50).endsWith("…"));
+    }
+
+    @Test
+    public void darkLogo() {
+        int clear = 0x00000000, black = 0xFF101010, red = 0xFFE50914, yellow = 0xFFF5C518;
+        assertTrue(Tmdb.darkLogo(new int[]{black, black, black, yellow, clear, clear, clear, clear, clear, clear}));
+        assertFalse(Tmdb.darkLogo(new int[]{red, red, red, clear, clear, clear, clear, clear, clear, clear}));
+        assertFalse(Tmdb.darkLogo(new int[]{black, black, black, black, black, black, black, black, black, clear}));   // a plate
     }
 
     @Test

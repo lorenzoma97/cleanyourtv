@@ -85,6 +85,34 @@ final class Tmdb {
         return null;
     }
 
+    /** A logo drawn for light backgrounds comes back white (alpha kept), so it reads on the dark page; null stays null. */
+    static android.graphics.Bitmap lightLogo(android.graphics.Bitmap b) {
+        if (b == null) return null;
+        int w = b.getWidth(), h = b.getHeight();
+        int[] px = new int[w * h];
+        b.getPixels(px, 0, w, 0, 0, w, h);
+        if (!darkLogo(px)) return b;
+        for (int i = 0; i < px.length; i++) px[i] |= 0x00FFFFFF;
+        android.graphics.Bitmap white = android.graphics.Bitmap.createBitmap(px, w, h, android.graphics.Bitmap.Config.ARGB_8888);
+        b.recycle();
+        return white;
+    }
+
+    /**
+     * True when most of the logo's solid pixels are dark (black lettering: Terminal List, Painkiller, Beckham). A logo
+     * that is mostly solid is a dark plate with light text (Jury Duty) and stays as it is. Same rule as the launcher's
+     * ContentShelf.darkLogo (top shelf).
+     */
+    static boolean darkLogo(int[] argb) {
+        int solid = 0, dark = 0;
+        for (int p : argb) {
+            if (p >>> 24 < 128) continue;
+            solid++;
+            if (Math.max(Math.max(p >> 16 & 0xFF, p >> 8 & 0xFF), p & 0xFF) < 100) dark++;
+        }
+        return solid > 0 && solid < argb.length * 0.7 && dark >= solid * 0.65;
+    }
+
     /** The plot cut at a sentence or word boundary near max characters (the shelf shows two lines). */
     static String shortPlot(String overview, int max) {
         if (overview == null) return "";

@@ -312,12 +312,41 @@ final class ContentShelf {
             BitmapFactory.Options o = new BitmapFactory.Options();
             o.inSampleSize = 1;
             while (bounds.outWidth / (o.inSampleSize * 2) >= maxWidth) o.inSampleSize *= 2;
+            Bitmap b;
             try (InputStream in = r.openInputStream(uri)) {
-                return BitmapFactory.decodeStream(in, null, o);
+                b = BitmapFactory.decodeStream(in, null, o);
             }
+            return b == null ? null : lightLogo(b);
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /** A logo drawn for light backgrounds comes back white (alpha kept), so it reads on the dark shelf. */
+    private static Bitmap lightLogo(Bitmap b) {
+        int w = b.getWidth(), h = b.getHeight();
+        int[] px = new int[w * h];
+        b.getPixels(px, 0, w, 0, 0, w, h);
+        if (!darkLogo(px)) return b;
+        for (int i = 0; i < px.length; i++) px[i] |= 0x00FFFFFF;
+        Bitmap white = Bitmap.createBitmap(px, w, h, Bitmap.Config.ARGB_8888);
+        b.recycle();
+        return white;
+    }
+
+    /**
+     * True when most of the logo's solid pixels are dark (black lettering: Terminal List, Painkiller, Beckham; 7 of
+     * 230 TMDB logos on 28 Oct 2026). A logo that is mostly solid is a dark plate with light text (Jury Duty, Pam &
+     * Tommy) and stays as it is. Same rule as Tmdb.darkLogo in Casa (Scopri).
+     */
+    static boolean darkLogo(int[] argb) {
+        int solid = 0, dark = 0;
+        for (int p : argb) {
+            if (p >>> 24 < 128) continue;
+            solid++;
+            if (Math.max(Math.max(p >> 16 & 0xFF, p >> 8 & 0xFF), p & 0xFF) < 100) dark++;
+        }
+        return solid > 0 && solid < argb.length * 0.7 && dark >= solid * 0.65;
     }
 
     private static boolean blank(String s) {
