@@ -113,7 +113,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** Idle time on Home before ClockActivity; 0 is off (config.xml, home_idle_clock_minutes). */
     private long idleClockMs;
     /** Fork: on the cinematic shelf Home at rest is the still picture with the time and tonight's series. */
-    private final Runnable showIdleClock = () -> startActivity(new Intent(this, cinematic ? IdleActivity.class : ClockActivity.class));
+    private final Runnable showIdleClock = () -> startActivity(new Intent(this, this.cinematic ? IdleActivity.class : ClockActivity.class));
     private String liveTvAction;
     private String liveTvInputId;
     private String inputAction;
