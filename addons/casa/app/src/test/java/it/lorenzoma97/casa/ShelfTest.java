@@ -103,6 +103,16 @@ public class ShelfTest {
     }
 
     @Test
+    public void meta() throws Exception {
+        assertEquals("2024 · Crime · 2 stagioni · ★ 7,8", Tmdb.meta(new JSONObject("{\"first_air_date\":\"2024-03-01\","
+                + "\"genres\":[{\"name\":\"Crime\"},{\"name\":\"Dramma\"}],\"number_of_seasons\":2,"
+                + "\"vote_average\":7.84,\"vote_count\":312}")));
+        assertEquals("2025 · Miniserie", Tmdb.meta(new JSONObject("{\"first_air_date\":\"2025-01-09\","
+                + "\"type\":\"Miniseries\",\"number_of_seasons\":1,\"vote_average\":9.5,\"vote_count\":4}")));
+        assertNull(Tmdb.meta(new JSONObject("{\"first_air_date\":null,\"genres\":[]}")));
+    }
+
+    @Test
     public void darkLogo() {
         int clear = 0x00000000, black = 0xFF101010, red = 0xFFE50914, yellow = 0xFFF5C518;
         assertTrue(Tmdb.darkLogo(new int[]{black, black, black, yellow, clear, clear, clear, clear, clear, clear}));

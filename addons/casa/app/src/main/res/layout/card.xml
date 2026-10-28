@@ -37,7 +37,7 @@
         android:textAllCaps="true"
         android:textColor="#FFFFFFFF"
         android:textSize="8sp"
-        android:fontFamily="monospace"
+        android:fontFamily="@font/outfit_medium"
         android:letterSpacing="0.08" />
 
     <TextView

@@ -25,7 +25,7 @@ import java.util.List;
  */
 public class HeroProvider extends ContentProvider {
     static final String AUTHORITY = "it.lorenzoma97.casa.hero";
-    private static final String[] COLUMNS = {"title", "line", "image", "action", "logo", "plot", "top", "tag", "season", "cta"};
+    private static final String[] COLUMNS = {"title", "line", "image", "action", "logo", "plot", "top", "tag", "season", "cta", "meta"};
     private static final String[] WEATHER = {"city", "temp", "max", "min", "desc", "icon", "air", "aqi"};
     private static final long URL_CACHE_BYTES = 15L * 1024 * 1024;
 
@@ -56,7 +56,7 @@ public class HeroProvider extends ContentProvider {
                         "content://" + AUTHORITY + "/img/" + x.optString("image"), x.isNull("action") ? null : x.optString("action"),
                         logo, x.optString("plot"), x.optInt("top", 0),
                         x.isNull("tag") ? null : x.optString("tag"), x.isNull("season") ? null : x.optString("season"),
-                        x.isNull("cta") ? null : x.optString("cta")});
+                        x.isNull("cta") ? null : x.optString("cta"), x.isNull("meta") ? null : x.optString("meta")});
             }
         } catch (Exception ignored) {
             // a broken shelf.json means an empty shelf, never a crash in the launcher's process
@@ -69,7 +69,7 @@ public class HeroProvider extends ContentProvider {
      * and a TOP 10 badge printed on it, which clash with the shelf's text. One row {image, logo}, or none.
      */
     private Cursor art(String title) {
-        MatrixCursor c = new MatrixCursor(new String[]{"image", "logo", "plot"});
+        MatrixCursor c = new MatrixCursor(new String[]{"image", "logo", "plot", "meta"});
         long id = Tmdb.findSeries(getContext(), title);
         if (id <= 0) return c;
         JSONObject d = Tmdb.details(getContext(), id);
@@ -80,16 +80,19 @@ public class HeroProvider extends ContentProvider {
             String logoPath = Tmdb.logo(d);
             String logo = null;
             if (logoPath != null) logo = "content://" + AUTHORITY + "/img/" + Tmdb.image(getContext(), "img", logoPath, "w500").getName();
-            c.addRow(new Object[]{image, logo, Tmdb.shortPlot(d.optString("overview"), 170)});
+            c.addRow(new Object[]{image, logo, Tmdb.shortPlot(d.optString("overview"), 170), Tmdb.meta(d)});
         } catch (Exception ignored) {
             // no clean picture: the launcher keeps the app's own
         }
         return c;
     }
 
-    /** Tonight's five for Home's "Scopri una nuova serie" bar: title and a small backdrop each (the section's first cards). */
+    /**
+     * Tonight's five for Home's "Scopri una nuova serie" bar and Home at rest: title and a small backdrop each (the
+     * section's first cards), and for the first a full-size one (the still picture at rest).
+     */
     private Cursor picks() {
-        MatrixCursor c = new MatrixCursor(new String[]{"tmdb", "title", "image"});
+        MatrixCursor c = new MatrixCursor(new String[]{"tmdb", "title", "image", "backdrop"});
         JSONObject content = Shelf.content(getContext(), false);
         JSONObject pool = content == null ? null : content.optJSONObject("pool");
         if (pool == null) return c;
@@ -101,7 +104,15 @@ public class HeroProvider extends ContentProvider {
             if (path == null) continue;
             try {
                 File f = Tmdb.image(getContext(), "pool", path, "w300");
-                c.addRow(new Object[]{id, d.optString("name"), "content://" + AUTHORITY + "/pool/" + f.getName()});
+                String big = null;
+                if (c.getCount() == 0) {
+                    try {
+                        big = "content://" + AUTHORITY + "/pool/" + Tmdb.image(getContext(), "pool", path, "w1280").getName();
+                    } catch (Exception ignored) {
+                        // the still picture is optional: Home at rest shows the time over black
+                    }
+                }
+                c.addRow(new Object[]{id, d.optString("name"), "content://" + AUTHORITY + "/pool/" + f.getName(), big});
             } catch (Exception ignored) {
                 // a missing thumbnail just leaves a shorter strip
             }

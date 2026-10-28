@@ -113,6 +113,26 @@ final class Tmdb {
         return solid > 0 && solid < argb.length * 0.7 && dark >= solid * 0.65;
     }
 
+    /**
+     * The facts the launcher's detail shows after its badges: "2024 · Crime · 2 stagioni · ★ 7,8" (first year, first
+     * genre, seasons or Miniserie, TMDB rating once 20 people voted). Parts TMDB lacks are left out; null when none.
+     */
+    static String meta(JSONObject d) {
+        java.util.List<String> parts = new java.util.ArrayList<>();
+        String date = d.isNull("first_air_date") ? "" : d.optString("first_air_date", "");
+        if (date.matches("\\d{4}.*")) parts.add(date.substring(0, 4));
+        JSONArray genres = d.optJSONArray("genres");
+        JSONObject genre = genres == null ? null : genres.optJSONObject(0);
+        if (genre != null && !genre.optString("name", "").trim().isEmpty()) parts.add(genre.optString("name").trim());
+        int seasons = d.optInt("number_of_seasons", 0);
+        if ("Miniseries".equals(d.optString("type"))) parts.add("Miniserie");
+        else if (seasons > 0) parts.add(seasons == 1 ? "1 stagione" : seasons + " stagioni");
+        if (d.optInt("vote_count", 0) >= 20 && d.optDouble("vote_average", 0) > 0) {
+            parts.add(String.format(java.util.Locale.ITALY, "★ %.1f", d.optDouble("vote_average")));
+        }
+        return parts.isEmpty() ? null : String.join(" · ", parts);
+    }
+
     /** The plot cut at a sentence or word boundary near max characters (the shelf shows two lines). */
     static String shortPlot(String overview, int max) {
         if (overview == null) return "";

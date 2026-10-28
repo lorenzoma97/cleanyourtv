@@ -113,7 +113,9 @@ public class SerieActivity extends Activity {
         addPill(row, getString(R.string.all_genres), null);
         for (Pool.Genre g : Pool.genres(pool)) addPill(row, g.label, g.code);
         draw(null);
-        cards.get(0).requestFocus();
+        // Home at rest opens Scopri on the series chosen there (tonight's five, the same as here).
+        int at = picks.indexOf(getIntent().getLongExtra("tmdb", -1L));
+        cards.get(Math.max(0, at)).requestFocus();
     }
 
     private void addPill(LinearLayout row, String label, String code) {

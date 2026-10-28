@@ -194,6 +194,7 @@ final class Shelf {
                             .put("top", en.top);
                     if (en.tag != null) item.put("tag", en.tag);
                     if (en.season != null) item.put("season", en.season);
+                    item.put("meta", Tmdb.meta(d));
                     String logo = Tmdb.logo(d);
                     if (logo != null) {
                         try {
