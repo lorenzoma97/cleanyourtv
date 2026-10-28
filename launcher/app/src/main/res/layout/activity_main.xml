@@ -134,7 +134,7 @@
             android:includeFontPadding="false"
             android:singleLine="true" />
 
-        <!-- Fork lorenzoma97, content shelf: badges (TOP 10, Nuova stagione, servizio), the resume bar and two lines of plot. -->
+        <!-- Fork lorenzoma97, content shelf: badges (TOP 10, Nuova stagione, the episode) and two lines of plot. -->
         <LinearLayout
             android:id="@+id/heroChips"
             android:layout_width="wrap_content"
@@ -144,22 +144,6 @@
             android:orientation="horizontal"
             android:gravity="center_vertical"
             android:visibility="gone" />
-
-        <FrameLayout
-            android:id="@+id/heroProgress"
-            android:layout_width="220dp"
-            android:layout_height="3dp"
-            android:layout_marginStart="2dp"
-            android:layout_marginTop="12dp"
-            android:background="#38FFFFFF"
-            android:visibility="gone">
-
-            <View
-                android:id="@+id/heroProgressFill"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:background="#FFFFFFFF" />
-        </FrameLayout>
 
         <TextView
             android:id="@+id/heroPlot"
@@ -177,7 +161,7 @@
             android:visibility="gone" />
 
         <!-- Fork lorenzoma97: play the title. Small and grey on Home (a hint that Up leads there), white in the detail;
-             on Home one thin segment per title beside it, the current one filling up in 8 s. -->
+             on Home one small dot per title beside it. -->
         <LinearLayout
             android:id="@+id/heroButtons"
             android:layout_width="wrap_content"
@@ -197,7 +181,7 @@
             <LinearLayout
                 android:id="@+id/heroSegs"
                 android:layout_width="wrap_content"
-                android:layout_height="3dp"
+                android:layout_height="4dp"
                 android:layout_marginStart="24dp"
                 android:orientation="horizontal"
                 android:visibility="gone" />
@@ -279,10 +263,10 @@
                 android:layout_toStartOf="@+id/topButtons"
                 android:layout_marginEnd="16dp"
                 android:background="@drawable/header_glass"
-                android:paddingStart="20dp"
-                android:paddingEnd="22dp"
-                android:paddingTop="10dp"
-                android:paddingBottom="4dp"
+                android:paddingStart="18dp"
+                android:paddingEnd="20dp"
+                android:paddingTop="8dp"
+                android:paddingBottom="2dp"
                 android:orientation="vertical">
 
                 <!-- The header texts use gravity left, not start: the launcher lays out left to right
@@ -297,7 +281,7 @@
                     android:ellipsize="end"
                     android:layout_marginStart="4dp"
                     android:textColor="#8CFFFFFF"
-                    android:textSize="12sp"
+                    android:textSize="11sp"
                     android:fontFamily="@font/outfit_medium"
                     android:letterSpacing="0.22"
                     android:textAllCaps="true" />
@@ -315,7 +299,7 @@
                         android:format12Hour="h:mm"
                         android:format24Hour="HH:mm"
                         android:textColor="#FFFFFFFF"
-                        android:textSize="52sp"
+                        android:textSize="42sp"
                         android:fontFamily="@font/outfit_light"
                         android:letterSpacing="-0.04"
                         android:includeFontPadding="false" />
@@ -337,18 +321,18 @@
 
                     <View
                         android:layout_width="1dp"
-                        android:layout_height="26dp"
+                        android:layout_height="22dp"
                         android:layout_gravity="bottom"
-                        android:layout_marginStart="16dp"
-                        android:layout_marginEnd="16dp"
-                        android:layout_marginBottom="8dp"
+                        android:layout_marginStart="14dp"
+                        android:layout_marginEnd="14dp"
+                        android:layout_marginBottom="7dp"
                         android:background="#33FFFFFF" />
 
                     <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_gravity="bottom"
-                        android:layout_marginBottom="9dp"
+                        android:layout_marginBottom="7dp"
                         android:orientation="vertical">
 
                         <!-- Shamsi date ("27 Mehr 1405"), shown when shamsi_date is on. -->
@@ -378,7 +362,7 @@
                             android:format12Hour="@string/date_format_home"
                             android:format24Hour="@string/date_format_home"
                             android:textColor="#A6FFFFFF"
-                            android:textSize="14sp"
+                            android:textSize="12sp"
                             android:fontFamily="@font/outfit_regular"
                             android:letterSpacing="0.14"
                             android:textAllCaps="true" />
@@ -425,10 +409,10 @@
                     android:layout_gravity="center_vertical"
                     android:layout_marginEnd="10dp"
                     android:background="@drawable/header_glass"
-                    android:paddingStart="14dp"
-                    android:paddingEnd="18dp"
-                    android:paddingTop="9dp"
-                    android:paddingBottom="9dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="16dp"
+                    android:paddingTop="7dp"
+                    android:paddingBottom="7dp"
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
                     android:focusable="false"
@@ -436,24 +420,24 @@
 
                     <ImageView
                         android:id="@+id/wxIcon"
-                        android:layout_width="38dp"
-                        android:layout_height="38dp"
+                        android:layout_width="30dp"
+                        android:layout_height="30dp"
                         android:importantForAccessibility="no" />
 
                     <TextView
                         android:id="@+id/wxTemp"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="10dp"
+                        android:layout_marginStart="8dp"
                         android:includeFontPadding="false"
                         android:textColor="#FFFFFFFF"
-                        android:textSize="38sp"
+                        android:textSize="30sp"
                         android:fontFamily="@font/outfit_extralight" />
 
                     <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="12dp"
+                        android:layout_marginStart="10dp"
                         android:orientation="vertical">
 
                         <TextView
@@ -463,8 +447,8 @@
                             android:textAllCaps="true"
                             android:letterSpacing="0.16"
                             android:textColor="#99FFFFFF"
-                            android:textSize="10sp"
-                            android:fontFamily="monospace" />
+                            android:textSize="9sp"
+                            android:fontFamily="@font/outfit_medium" />
 
                         <TextView
                             android:id="@+id/wxDesc"
@@ -473,22 +457,22 @@
                             android:layout_marginTop="1dp"
                             android:singleLine="true"
                             android:textColor="#D9FFFFFF"
-                            android:textSize="14sp"
+                            android:textSize="12sp"
                             android:fontFamily="@font/outfit_light" />
 
                         <TextView
                             android:id="@+id/wxAir"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
+                            android:layout_marginTop="3dp"
                             android:paddingStart="6dp"
                             android:paddingEnd="6dp"
                             android:paddingTop="1dp"
                             android:paddingBottom="1dp"
                             android:textAllCaps="true"
-                            android:letterSpacing="0.06"
-                            android:textSize="9sp"
-                            android:fontFamily="monospace"
+                            android:letterSpacing="0.08"
+                            android:textSize="8.5sp"
+                            android:fontFamily="@font/outfit_medium"
                             android:visibility="gone" />
                     </LinearLayout>
                 </LinearLayout>
@@ -565,14 +549,14 @@
         android:alpha="0"
         android:importantForAccessibility="no" />
 
-    <!-- Fork lorenzoma97: Home's lower section (Casa add-on) announced at the bottom: tonight's five as thumbnails;
-         it lights up on the last app row, where Down opens the section. -->
+    <!-- Fork lorenzoma97: Home's lower section (Casa add-on) announced at the bottom: tonight's five as titled cards,
+         inside the TV's safe margin; it lights up on the last app row, where Down opens the section. -->
     <LinearLayout
         android:id="@+id/discoverBar"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|center_horizontal"
-        android:layout_marginBottom="12dp"
+        android:layout_marginBottom="28dp"
         android:background="@drawable/discover_bar"
         android:gravity="center_vertical"
         android:orientation="horizontal"
@@ -618,6 +602,6 @@
             android:text="▼"
             android:textColor="#CCE5A00D"
             android:textSize="11sp"
-            android:fontFamily="monospace" />
+            android:fontFamily="@font/outfit_medium" />
     </LinearLayout>
 </FrameLayout>

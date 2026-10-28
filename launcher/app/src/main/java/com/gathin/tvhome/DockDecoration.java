@@ -28,6 +28,8 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
     private final boolean lightGlass;
     /** The band's top and bottom the glass gradient was made for; it is remade when they move. */
     private float shaderTop = Float.NaN, shaderBottom = Float.NaN;
+    /** Fork lorenzoma97: the blurred picture under the band on the cinematic shelf (Frost); null for none. */
+    private Frost frost;
 
     /**
      * @param translucent the cinematic shelf's band: the artwork and the glow show through it.
@@ -50,6 +52,10 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
         edge.setStyle(Paint.Style.STROKE);
         edge.setStrokeWidth(density);
         edge.setColor(lightGlass ? 0x38FFFFFF : translucent ? 0x26FFFFFF : 0x1FFFFFFF);
+    }
+
+    void setFrost(Frost frost) {
+        this.frost = frost;
     }
 
     @Override
@@ -103,6 +109,7 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
             shaderTop = rect.top;
             shaderBottom = rect.bottom;
         }
+        if (frost != null) frost.draw(c, parent, rect, radius);
         c.drawRoundRect(rect, radius, radius, band);
         c.drawRoundRect(rect, radius, radius, edge);
     }

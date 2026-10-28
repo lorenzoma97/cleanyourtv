@@ -160,6 +160,8 @@ final class Config {
     final boolean wallpaperCaptions;
     /** Answer VIEW_INPUTS with the Inputs menu (handle_view_inputs); see InputsRequestActivity. */
     final boolean handleViewInputs;
+    /** Fork lorenzoma97: an "Altro" tile at the end of the apps that opens the app library (config.xml library_tile). */
+    final boolean libraryTile;
     /** After repeated crashes the config file and the wallpaper are skipped (docs/WATCHDOG.md). */
     final boolean safeMode;
 
@@ -175,8 +177,9 @@ final class Config {
                    Festival festival, int[] inputKeycodes, List<String> appKeys, String stockHomeRedirect,
                    List<RaceWeekend.Race> raceCalendar, boolean cinematicHome, boolean ambientGlow, boolean appGlow, int homeIdleClockMinutes,
                    boolean keyFilter, boolean dockGlass, String glowStyle, boolean wallpaperCaptions,
-                   boolean handleViewInputs, boolean safeMode) {
+                   boolean handleViewInputs, boolean libraryTile, boolean safeMode) {
         this.handleViewInputs = handleViewInputs;
+        this.libraryTile = libraryTile;
         this.safeMode = safeMode;
         this.inputKeycodes = inputKeycodes;
         this.appKeys = Collections.unmodifiableList(appKeys);
@@ -311,6 +314,7 @@ final class Config {
         boolean keyFilter = res.getBoolean(R.bool.key_filter);
         boolean dockGlass = res.getBoolean(R.bool.dock_glass);
         String glowStyle = res.getString(R.string.glow_style);
+        boolean libraryTile = res.getBoolean(R.bool.library_tile);
         boolean applied = false;
 
         File dir = dir(ctx);
@@ -340,7 +344,7 @@ final class Config {
             coocaaSources = bool(json, "coocaa_sources", coocaaSources);
             inputAction = string(json, "input_action", inputAction);
             inputUriScheme = string(json, "input_uri_scheme", inputUriScheme).trim();
-            columns = integer(json, "columns", columns, 1, 8);
+            columns = integer(json, "columns", columns, 1, 9);   // fork: 9 for one row of eight apps and Altro
             rowsBelow = integer(json, "rows_below_dock", rowsBelow, 0, 3);
             animations = bool(json, "animations", animations);
             advancedEffects = bool(json, "advanced_effects", advancedEffects);
@@ -380,6 +384,7 @@ final class Config {
             keyFilter = bool(json, "key_filter", keyFilter);
             dockGlass = bool(json, "dock_glass", dockGlass);
             glowStyle = string(json, "glow_style", glowStyle);
+            libraryTile = bool(json, "library_tile", libraryTile);
         }
         int chosenColumns = choices.getInt("columns", columns);
         if (chosenColumns >= 4 && chosenColumns <= 7) columns = chosenColumns;
@@ -436,7 +441,7 @@ final class Config {
                 Math.max(0, Math.min(100, skyIntensity)), settingsKeycodes, settingsKeyPanel, wallpaperEnabled, wallpaper,
                 wallpapers, rotationMinutes, wallpaperDim, dockOpacity, wallpaperOrder, applied,
                 festival, inputKeycodes, appKeys, stockHomeRedirect, json == null ? Collections.emptyList() : raceCalendar(json), cinematic, ambientGlow, appGlow,
-                Math.max(0, idleClockMinutes), keyFilter, dockGlass, glowStyle, wallpaperCaptions, handleViewInputs, safe);
+                Math.max(0, idleClockMinutes), keyFilter, dockGlass, glowStyle, wallpaperCaptions, handleViewInputs, libraryTile, safe);
     }
 
     /**

@@ -4,6 +4,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /** Plain JVM test for the "Riprendi" line on the content shelf (fork lorenzoma97). */
@@ -15,6 +16,16 @@ public class ContentShelfTest {
         assertEquals("Riprendi · E3", ContentShelf.resumeLine("", "3", null, 10, 0));
         assertEquals("Riprendi · 99%", ContentShelf.resumeLine(null, null, null, 100, 100));   // never "100%"
         assertEquals("Riprendi", ContentShelf.resumeLine(null, null, null, 0, 0));
+    }
+
+    @Test
+    public void timeLeft() {
+        assertEquals("mancano 23 min", ContentShelf.timeLeft(22 * 60_000L, 45 * 60_000L));
+        assertEquals("manca 1 min", ContentShelf.timeLeft(44 * 60_000L + 40_000L, 45 * 60_000L));
+        assertEquals("mancano 1 h 5 min", ContentShelf.timeLeft(10 * 60_000L, 75 * 60_000L));
+        assertEquals("mancano 2 h", ContentShelf.timeLeft(60_000L, 121 * 60_000L));
+        assertNull(ContentShelf.timeLeft(0, 45 * 60_000L));              // not started: no resume point
+        assertNull(ContentShelf.timeLeft(50 * 60_000L, 45 * 60_000L));   // past the end
     }
 
     @Test

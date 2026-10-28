@@ -232,6 +232,9 @@
 
     <!-- Installed launchable apps, including ordinary Android apps. Also settable in config.json. -->
     <bool name="app_library">false</bool>
+    <!-- Fork lorenzoma97: an "Altro" tile after the last app that opens the app library (it needs no app_library pill).
+         Also settable with "library_tile": true in config.json. -->
+    <bool name="library_tile">false</bool>
 
     <!-- Module cards: an app that declares a card (docs/specs/card.md) can stand in for its tile with its own
          label, caption and glow colour, once you answer Show on the prompt. false: never look for cards or ask. -->

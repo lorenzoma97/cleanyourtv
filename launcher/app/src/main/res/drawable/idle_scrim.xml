@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fork lorenzoma97: Home at rest, the still picture darkened on the left and at the foot, under the time and cards. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="0"
+                android:startColor="#D9060406"
+                android:centerColor="#4D060406"
+                android:endColor="#00060406" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="90"
+                android:startColor="#F2060406"
+                android:centerColor="#80060406"
+                android:endColor="#00060406" />
+        </shape>
+    </item>
+</layer-list>

@@ -112,7 +112,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private String liveTvPkg;
     /** Idle time on Home before ClockActivity; 0 is off (config.xml, home_idle_clock_minutes). */
     private long idleClockMs;
-    private final Runnable showIdleClock = () -> startActivity(new Intent(this, ClockActivity.class));
+    /** Fork: on the cinematic shelf Home at rest is the still picture with the time and tonight's series. */
+    private final Runnable showIdleClock = () -> startActivity(new Intent(this, cinematic ? IdleActivity.class : ClockActivity.class));
     private String liveTvAction;
     private String liveTvInputId;
     private String inputAction;
@@ -146,6 +147,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private static final float HERO_ART_ALPHA = 0.5f;
     /** Softened artwork per app (HeroArt, about 5 KB each), made the first time its dock tile is focused. */
     private final Map<String, Bitmap> heroArtCache = new HashMap<>();
+    /** Fork: frosted glass on the panels over the cinematic shelf, and the blurred copy of each app's art. */
+    private final Frost frost = new Frost();
+    private final Map<String, Bitmap> frostCache = new HashMap<>();
+    private Bitmap scrimBitmap;
+    private Frost.Panel discoverPanel;
     /** The app whose artwork heroArt shows, so focusing it again only fades it back in. */
     private String heroArtKey;
     /** The focus glow's colour while the cinematic shelf tints it, 0 for plain white glass. */
@@ -235,6 +241,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private PopupWindow openPopup;
     /** Reorder mode is on (top-bar button). */
     private boolean reordering;
+    /** Fork: reorder mode began with a long press; its OK key-up is still to come and is swallowed. */
+    private boolean okUpPending;
+    /** Fork: focus is on an app tile (the others then rest dimmer, see tileAlpha). */
+    private boolean tilesFocused;
     /** Key of the tile being carried in reorder mode, or null. */
     private String movingKey;
     /** Tile order when reorder mode started, to save only when something moved. */
@@ -392,7 +402,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         heroArt = findViewById(R.id.heroArt);
         heroLogo = findViewById(R.id.heroLogo);
         heroChips = findViewById(R.id.heroChips);
-        heroProgress = findViewById(R.id.heroProgress);
         heroPlot = findViewById(R.id.heroPlot);
         heroSegs = findViewById(R.id.heroSegs);
         heroButtons = findViewById(R.id.heroButtons);
@@ -490,8 +499,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             }
         });
         // Fork: on the cinematic shelf the band holds every app row, one panel for all apps (dock + the rest).
-        if (dockRow) grid.addItemDecoration(new DockDecoration(COLUMNS, density, cinematic,
-                cfg.alwaysShowNames, cfg.dockOpacity, cfg.dockGlass, cinematic));
+        if (dockRow) {
+            DockDecoration band = new DockDecoration(COLUMNS, density, cinematic,
+                    cfg.alwaysShowNames, cfg.dockOpacity, cfg.dockGlass, cinematic);
+            if (cinematic) {
+                band.setFrost(frost);
+                frost.addHost(grid);
+            }
+            grid.addItemDecoration(band);
+        }
         // Reduced motion: the tiles are simply there, with no entrance (reloadApps skips it there too).
         if (animations && !reducedMotion) {
             grid.setLayoutAnimation(new LayoutAnimationController(
@@ -529,8 +545,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             // Keep the hero below the header when the library is enabled on a short screen,
             // even when the theme requests an extra visible row below the dock.
             int shelfClearance = cfg.appLibrary ? hero.getMeasuredHeight() + (int) (40 * density) : 0;
-            // Fork: under the panel only the "Scopri una nuova serie" bar (about 62dp with its margins) and a 12dp gap.
-            int bottomRoom = (int) ((compact ? 74 : AppAdapter.BOTTOM_ROOM_DP) * density);
+            // Fork: under the panel only the "Scopri una nuova serie" bar (62dp, 28dp off the edge) and a 14dp gap.
+            int bottomRoom = (int) ((compact ? 104 : AppAdapter.BOTTOM_ROOM_DP) * density);
             int want = Math.max(shelfClearance, h - dockRow - gridRows - bottomRoom);
             // Where the rows cannot fit even at the smallest tile (3 rows with the title on), the title keeps its
             // room above the dock and the last rows run off the bottom instead of the title drawing over the clock.
@@ -656,6 +672,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         getWindow().getDecorView().getViewTreeObserver().addOnGlobalFocusChangeListener((oldF, newF) -> {
             boolean onTile = newF != null && newF.getId() == R.id.card;
             if (!onTile) hideGlass();
+            if (onTile != tilesFocused) {
+                tilesFocused = onTile;
+                if (!onTile) dimOthers();   // focus left the apps: all of them full again
+            }
         });
 
         packageFilter.addAction(Intent.ACTION_PACKAGE_ADDED);
@@ -912,6 +932,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         final List<Cards.Card> none = Collections.emptyList();
         // An updated app may bring new artwork; the backdrop is cheap to make again.
         heroArtCache.clear();
+        frostCache.clear();
         heroArtKey = null;
         // One LEANBACK query for both the tiles and the card checks.
         final List<ResolveInfo> leanback = getPackageManager().queryIntentActivities(
@@ -1003,6 +1024,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         grid.setAdapter(null);
         grid.getRecycledViewPool().clear();
         heroArtCache.clear();
+        frostCache.clear();
         heroArtKey = null;
         shelfCache.clear();
         tileRefresh.invalidate();
@@ -1073,6 +1095,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         boolean ok = code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER
                 || code == KeyEvent.KEYCODE_NUMPAD_ENTER;
         boolean back = code == KeyEvent.KEYCODE_BACK || code == KeyEvent.KEYCODE_ESCAPE;
+        if (ok && !down && okUpPending) {
+            okUpPending = false;
+            return true;
+        }
         if (movingKey != null) {
             switch (code) {
                 case KeyEvent.KEYCODE_DPAD_LEFT:
@@ -1222,7 +1248,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private void dimOthers() {
         for (int i = 0; i < grid.getChildCount(); i++) {
             View item = grid.getChildAt(i);
-            item.setAlpha(tileAlpha(grid.getChildAdapterPosition(item)));
+            float alpha = tileAlpha(grid.getChildAdapterPosition(item));
+            if (item.getAlpha() == alpha) continue;
+            if (animations) item.animate().alpha(alpha).setDuration(140).start();
+            else item.setAlpha(alpha);
         }
     }
 
@@ -1232,12 +1261,16 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             return pos != RecyclerView.NO_POSITION && movingKey.equals(adapter.keyAt(pos)) ? 1f : 0.45f;
         }
         if (dockEditSlot >= 0 && pos >= 0 && pos < COLUMNS && pos != dockEditSlot) return 0.45f;
+        // Fork: on the cinematic shelf the apps beside the focused one rest a little dimmer, so the focus reads from
+        // the sofa, on a white banner too.
+        if (cinematic && !reordering && tilesFocused && pos != lastFocused) return 0.7f;
         return 1f;
     }
 
     /** Ends the mode and saves the order if it changed since the mode started. */
     private void endReorder() {
         if (!reordering) return;
+        okUpPending = false;
         dockEditing = false;
         dockEditSlot = -1;
         drop();
@@ -1343,9 +1376,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (openPopup != null) openPopup.dismiss();
         libraryFocusPending = false;
         libraryFromTopBar = false;
+        View from = getCurrentFocus();
+        boolean fromTile = from != null && from.getId() == R.id.card;   // fork: the "Altro" tile
         appLibrary = new AppLibraryDialog(this, animations, reducedMotion, adapter::containsPackage, () -> reloadApps(false), () -> {
             appLibrary = null;
             openPopup = null;
+            if (fromTile) {
+                refocusAfterLayout(Math.min(lastFocused, adapter.appCount() - 1));
+                return;
+            }
             if (libraryFromTopBar) {
                 libraryFromTopBar = false;
                 btnLibraryTop.requestFocus();
@@ -1364,8 +1403,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     public void onTileFocused(int position, View card) {
         lastFocused = position;
         lastFocusedKey = adapter.keyAt(position);
+        tilesFocused = true;
+        if (cinematic) dimOthers();
         int apps = adapter.appCount();
-        setDiscoverActive(position >= COLUMNS && position >= ((apps - 1) / COLUMNS) * COLUMNS);   // fork
+        setDiscoverActive(position >= ((apps - 1) / COLUMNS) * COLUMNS);   // fork: the last row, the dock when it is the only one
         // Focus restored before the first layout (cold start): the tile has no size yet, and the glass
         // would be sized to 2*pad. Run again once the tile is laid out.
         if (card.getWidth() == 0) {
@@ -1553,6 +1594,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         View scrim = findViewById(R.id.heroScrim);
         scrim.setBackground(scrimDrawable());
         scrim.setVisibility(View.VISIBLE);
+        // Fork: the clock, the weather and the Scopri bar on frosted glass (the app panel's band: DockDecoration).
+        View clock = findViewById(R.id.leftBlock), weather = findViewById(R.id.weather), bar = findViewById(R.id.discoverBar);
+        if (clock != null) clock.setBackground(new Frost.Panel(frost, clock, 16, 0x5C0E0F14, 0x1FFFFFFF, 1));
+        if (weather != null) weather.setBackground(new Frost.Panel(frost, weather, 16, 0x5C0E0F14, 0x1FFFFFFF, 1));
+        if (bar != null) {
+            discoverPanel = new Frost.Panel(frost, bar, 22, 0x80101116, 0x59E5A00D, 1);
+            bar.setBackground(discoverPanel);
+        }
+        frost.set(Frost.blur(null, false, 0f, scrimBitmap), 0);
     }
 
     /**
@@ -1572,6 +1622,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 new int[]{0x00060406, 0x00060406, 0xDB060406, 0xFF060406}, new float[]{0f, 0.28f, 0.58f, 0.76f},
                 Shader.TileMode.CLAMP));
         canvas.drawRect(0, 0, w, h, paint);
+        scrimBitmap = bmp;   // Frost draws it into its blurred copy of the screen
         BitmapDrawable scrim = new BitmapDrawable(getResources(), bmp);
         scrim.setGravity(Gravity.FILL);
         return scrim;
@@ -1593,13 +1644,21 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         heroArtKey = key;
         final Bitmap next = art;
+        Bitmap blurred = frostCache.get(key);
+        if (blurred == null) {
+            blurred = Frost.blur(next, false, HERO_ART_ALPHA, scrimBitmap);
+            frostCache.put(key, blurred);
+        }
+        final Bitmap frosted = blurred;
         if (!animations || reducedMotion || heroArt.getAlpha() == 0f) {
             heroArt.setImageBitmap(next);
+            frost.set(frosted, animations ? 600 : 0);
             fadeHeroArt(600);
             return;
         }
         heroArt.animate().alpha(0f).setDuration(140).withEndAction(() -> {
             heroArt.setImageBitmap(next);
+            frost.set(frosted, 420);
             heroArt.animate().alpha(HERO_ART_ALPHA).setDuration(420).start();
         }).start();
     }
@@ -1623,21 +1682,19 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private final Map<String, Long> shelfLoadedAt = new HashMap<>();
     private final Runnable shelfTick = this::nextShelfItem;
     /** The dock app the shelf is rotating for, its items, and the one on screen (null: the app's own art). */
-    private String shelfPkg, shelfLabel;
+    private String shelfPkg;
     private List<ContentShelf.Item> shelfItems;
     private ContentShelf.Item shelfShown;
     private Bitmap shelfLogo;
     private int shelfIndex, shelfToken, shelfFailures;
     private ImageView heroLogo;
     private LinearLayout heroChips, heroSegs;
-    private View heroProgress;
     private TextView heroPlot;
     /** Where the dock band starts (root coordinates): the shelf is placed from there upwards. */
     private float lastDockTop = -1;
     /** A part of the shelf is about to be dropped for lack of room (placeHero): one at a time. */
     private boolean shedPending;
     private int weatherMinutes;
-    private android.animation.ValueAnimator segRun;
     /**
      * Fork: Up from the dock opens the title's detail, a longer plot over a row of title cards (Left/Right, OK plays);
      * the app panel slides down, dimmed.
@@ -1645,6 +1702,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private boolean shelfDetail;
     private View heroButtons;
     private TextView heroWatch;
+    private ResumeBar resumeBar;
     private android.widget.HorizontalScrollView heroCardsScroll;
     private LinearLayout heroCards;
     /** The cards' pictures, kept while the shelf stays on the same app. */
@@ -1659,7 +1717,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         stopShelf();
         if (pkg == null) return;
         shelfPkg = pkg;
-        shelfLabel = adapter.labelAt(position);
         int token = ++shelfToken;
         List<ContentShelf.Item> cached = shelfCache.get(pkg);
         Long at = shelfLoadedAt.get(pkg);
@@ -1710,6 +1767,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         shelfIo.execute(() -> {
             Bitmap bmp = ContentShelf.decode(app, item.image, width);
             Bitmap logo = bmp == null || item.logo == null ? null : ContentShelf.decodeLogo(app, item.logo, logoWidth);
+            Bitmap frosted = bmp == null ? null : Frost.blur(bmp, true, SHELF_ART_ALPHA, scrimBitmap);
             handler.post(() -> {
                 if (token != shelfToken || isDestroyed()) return;
                 if (bmp == null) {
@@ -1718,7 +1776,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     return;
                 }
                 shelfFailures = 0;
-                applyShelfItem(item, bmp, logo);
+                applyShelfItem(item, bmp, logo, frosted);
                 if (items.size() > 1 && !shelfDetail) {   // the detail changes title only on Left/Right
                     handler.removeCallbacks(shelfTick);
                     handler.postDelayed(shelfTick, SHELF_ROTATE_MS);
@@ -1727,7 +1785,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         });
     }
 
-    private void applyShelfItem(ContentShelf.Item item, Bitmap bmp, Bitmap logo) {
+    private void applyShelfItem(ContentShelf.Item item, Bitmap bmp, Bitmap logo, Bitmap frosted) {
         boolean first = shelfShown == null;
         shelfShown = item;
         shelfLogo = logo;
@@ -1736,6 +1794,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (!animations) {
             heroArt.setScaleType(ImageView.ScaleType.CENTER_CROP);
             heroArt.setImageBitmap(bmp);
+            frost.set(frosted, 0);
             heroArt.setAlpha(SHELF_ART_ALPHA);
             showShelfText(item, logo);
             return;
@@ -1743,6 +1802,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         heroArt.animate().alpha(0f).setDuration(first ? 200 : 320).withEndAction(() -> {
             heroArt.setScaleType(ImageView.ScaleType.CENTER_CROP);   // real pictures are cropped, never stretched
             heroArt.setImageBitmap(bmp);
+            frost.set(frosted, 700);
             heroArt.setScaleX(1f);
             heroArt.setScaleY(1f);
             heroArt.animate().alpha(SHELF_ART_ALPHA).setDuration(700).withEndAction(() ->
@@ -1789,22 +1849,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 addShelfChip(s, 0xFFE50914, 0, 0xFFFFFFFF);
             }
             if (item.tag != null) addShelfChip(item.tag, 0xFFE5A00D, 0, 0xFF160F02);
-            if (item.resume != null) addShelfChip("Riprendi · " + item.resume, 0x26FFFFFF, 0, 0xFFFFFFFF);
-            else if (item.progress >= 0) addShelfChip("Riprendi", 0x26FFFFFF, 0, 0xFFFFFFFF);
+            // "Riprendi" and how far you got are on the play button; the badge keeps the episode. No service badge:
+            // the shelf always shows the app under it.
+            if (item.resume != null) addShelfChip(item.resume, 0x26FFFFFF, 0, 0xFFFFFFFF);
             if (item.season != null) addShelfChip(item.season, 0x26FFFFFF, 0, 0xFFFFFFFF);
-            if (shelfLabel != null) addShelfChip(shelfLabel, 0, 0x55FFFFFF, 0xFFFFFFFF);
+            if (shelfDetail && item.meta != null) addShelfMeta(item.meta);
             heroChips.setVisibility(heroChips.getChildCount() > 0 ? View.VISIBLE : View.GONE);
-        }
-        if (heroProgress != null) {
-            if (item.progress >= 0) {
-                View fill = heroProgress.findViewById(R.id.heroProgressFill);
-                ViewGroup.LayoutParams lp = fill.getLayoutParams();
-                lp.width = (int) (220 * density * Math.max(0.03f, item.progress));
-                fill.setLayoutParams(lp);
-                heroProgress.setVisibility(View.VISIBLE);
-            } else {
-                heroProgress.setVisibility(View.GONE);
-            }
         }
         if (heroPlot != null) {
             // Decide up front, so the shelf does not flash a plot that is dropped one frame later for lack of room.
@@ -1832,8 +1882,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         c.setText(text);
         c.setTextColor(color);
         c.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f);
-        c.setTypeface(android.graphics.Typeface.MONOSPACE);
-        c.setLetterSpacing(0.08f);
+        c.setTypeface(getResources().getFont(R.font.outfit_medium));
+        c.setLetterSpacing(0.06f);
         c.setAllCaps(true);
         c.setIncludeFontPadding(false);
         int h = (int) (8 * density), v = (int) (4 * density);
@@ -1848,60 +1898,49 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         heroChips.addView(c, lp);
     }
 
-    /** One thin segment per title (at most 10): the ones already shown full, the current one filling in 8 s. */
+    /** The detail's facts after the badges, plain text: "2024 · Thriller · 2 stagioni · ★ 7,8" (Casa, from TMDB). */
+    private void addShelfMeta(String text) {
+        TextView t = new TextView(this);
+        t.setText(text);
+        t.setTextColor(0xCCFFFFFF);
+        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f);
+        t.setTypeface(getResources().getFont(R.font.outfit_regular));
+        t.setIncludeFontPadding(false);
+        t.setSingleLine(true);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.setMarginStart(heroChips.getChildCount() > 0 ? (int) (4 * density) : 0);
+        heroChips.addView(t, lp);
+    }
+
+    /** One small dot per title (at most 10), the one on screen a longer white bar: there is more to see. */
     private void showSegments() {
         if (heroSegs == null) return;
-        if (segRun != null) segRun.cancel();
         heroSegs.removeAllViews();
         int n = shelfItems == null ? 0 : Math.min(10, shelfItems.size());
         if (n < 2) {
             heroSegs.setVisibility(View.GONE);
             return;
         }
-        int w = (int) (26 * density), gap = (int) (5 * density);
-        View running = null;
+        int dot = (int) (4 * density), gap = (int) (5 * density);
         for (int i = 0; i < n; i++) {
-            FrameLayout seg = new FrameLayout(this);
-            GradientDrawable track = new GradientDrawable();
-            track.setCornerRadius(2 * density);
-            track.setColor(i < shelfIndex ? 0xD9FFFFFF : 0x40FFFFFF);
-            seg.setBackground(track);
-            if (i == shelfIndex) {
-                View fill = new View(this);
-                fill.setBackgroundColor(0xFFFFFFFF);
-                fill.setPivotX(0f);
-                fill.setScaleX(0f);
-                seg.addView(fill, new FrameLayout.LayoutParams(w, ViewGroup.LayoutParams.MATCH_PARENT));
-                running = fill;
-            }
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(w, ViewGroup.LayoutParams.MATCH_PARENT);
+            View d = new View(this);
+            GradientDrawable shape = new GradientDrawable();
+            shape.setCornerRadius(dot / 2f);
+            shape.setColor(i == shelfIndex ? 0xE6FFFFFF : 0x47FFFFFF);
+            d.setBackground(shape);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(i == shelfIndex ? dot * 4 : dot, dot);
             lp.setMarginEnd(gap);
-            seg.setClipToOutline(true);
-            heroSegs.addView(seg, lp);
+            heroSegs.addView(d, lp);
         }
         heroSegs.setVisibility(View.VISIBLE);
-        if (running != null) {
-            View fill = running;
-            if (!animations) {
-                fill.setScaleX(1f);
-                return;
-            }
-            segRun = android.animation.ValueAnimator.ofFloat(0f, 1f);
-            segRun.setDuration(SHELF_ROTATE_MS);
-            segRun.setInterpolator(new android.view.animation.LinearInterpolator());
-            segRun.addUpdateListener(a -> fill.setScaleX((float) a.getAnimatedValue()));
-            segRun.start();
-        }
     }
 
     /** Back to the plain shelf for an app with nothing to show: its name in light type, "Last opened", the dots. */
     private void appShelfLook() {
         if (heroLogo != null) heroLogo.setVisibility(View.GONE);
         if (heroChips != null) heroChips.setVisibility(View.GONE);
-        if (heroProgress != null) heroProgress.setVisibility(View.GONE);
         if (heroPlot != null) heroPlot.setVisibility(View.GONE);
         if (heroButtons != null) heroButtons.setVisibility(View.GONE);   // the segments sit in this row
-        if (segRun != null) segRun.cancel();
         heroName.setVisibility(View.VISIBLE);
         heroName.setTypeface(getResources().getFont(R.font.outfit_light));
         heroName.setAllCaps(false);
@@ -2046,11 +2085,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         shelfToken++;
         boolean wasShown = shelfShown != null;
         shelfPkg = null;
-        shelfLabel = null;
         shelfItems = null;
         shelfShown = null;
         shelfLogo = null;
-        if (segRun != null) segRun.cancel();
         if (wasShown) {
             heroArt.animate().cancel();
             heroArt.setScaleX(1f);
@@ -2062,14 +2099,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     private boolean discoverActive;
 
-    /** The bar under the app panel: tonight's five from Casa as thumbnails; hidden without Casa. */
+    /** The bar under the app panel: tonight's five from Casa as titled cards; hidden without Casa. */
     private void loadDiscoverBar() {
         LinearLayout bar = findViewById(R.id.discoverBar);
         if (bar == null || !cinematic) return;
         Context app = getApplicationContext();
-        int w = Math.round(56 * density), h = Math.round(32 * density);
+        int w = Math.round(88 * density), h = Math.round(50 * density);
         shelfIo.execute(() -> {
-            List<Bitmap> thumbs = ContentShelf.picks(app, w * 2);
+            List<ContentShelf.Pick> thumbs = ContentShelf.picks(app, w * 2);
             handler.post(() -> {
                 if (isDestroyed()) return;
                 if (thumbs == null) {
@@ -2078,15 +2115,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 }
                 LinearLayout row = findViewById(R.id.discoverThumbs);
                 row.removeAllViews();
-                for (Bitmap b : thumbs) {
-                    ImageView iv = new ImageView(this);
-                    iv.setImageBitmap(b);
-                    iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
-                    iv.setBackgroundResource(R.drawable.discover_thumb);
-                    iv.setClipToOutline(true);
+                for (ContentShelf.Pick pick : thumbs) {
                     LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(w, h);
                     lp.setMarginEnd(Math.round(6 * density));
-                    row.addView(iv, lp);
+                    row.addView(TitleCard.make(this, pick.image, pick.title, 9.5f), lp);
                 }
                 row.setVisibility(thumbs.isEmpty() ? View.GONE : View.VISIBLE);
                 bar.setVisibility(View.VISIBLE);
@@ -2099,7 +2131,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         View bar = findViewById(R.id.discoverBar);
         if (bar == null || discoverActive == on) return;
         discoverActive = on;
-        bar.setBackgroundResource(on ? R.drawable.discover_bar_on : R.drawable.discover_bar);
+        if (discoverPanel != null) discoverPanel.style(on ? 0xB31A1406 : 0x80101116, on ? 0xFFE5A00D : 0x59E5A00D, on ? 2 : 1);
+        else bar.setBackgroundResource(on ? R.drawable.discover_bar_on : R.drawable.discover_bar);
         if (animations) bar.animate().alpha(on ? 1f : 0.85f).scaleX(on ? 1.05f : 1f).scaleY(on ? 1.05f : 1f).setDuration(220).start();
         else bar.setAlpha(on ? 1f : 0.85f);
         TextView hint = findViewById(R.id.discoverHint);
@@ -2137,7 +2170,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (shelfDetail || shelfShown == null || shelfItems == null) return;
         shelfDetail = true;
         handler.removeCallbacks(shelfTick);
-        if (segRun != null) segRun.cancel();
         moveApps(true, true);
         if (heroPlot != null) heroPlot.setMaxLines(4);   // placeHero trims it once, then it holds for every card
         showShelfText(shelfShown, shelfLogo);
@@ -2171,35 +2203,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         List<ContentShelf.Item> items = shelfItems;
         heroCards.removeAllViews();
         heroCardsScroll.scrollTo(0, 0);   // the row is shared by every app: start from its beginning
-        int w = Math.round(96 * density), h = Math.round(54 * density), pad = Math.round(2 * density);
+        int w = Math.round(96 * density), h = Math.round(54 * density);
         for (int i = 0; i < items.size(); i++) {
             int index = i;
-            // The picture, and the title over a dark fade at its foot.
-            FrameLayout card = new FrameLayout(this);
-            card.setBackgroundResource(R.drawable.hero_card);
-            card.setPadding(pad, pad, pad, pad);
-            card.setClipToOutline(true);
+            FrameLayout card = TitleCard.make(this, cardThumbs.get(items.get(i)), items.get(i).title, 10.5f);
             card.setFocusable(true);
             card.setAlpha(0.55f);
-            ImageView picture = new ImageView(this);
-            picture.setScaleType(ImageView.ScaleType.CENTER_CROP);
-            picture.setImageBitmap(cardThumbs.get(items.get(i)));
-            card.addView(picture, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT));
-            TextView title = new TextView(this);
-            title.setText(items.get(i).title);
-            title.setTextColor(0xFFFFFFFF);
-            title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10.5f);
-            title.setTypeface(getResources().getFont(R.font.outfit_medium));
-            title.setMaxLines(2);
-            title.setEllipsize(android.text.TextUtils.TruncateAt.END);
-            title.setLineSpacing(0f, 0.95f);
-            title.setPadding(Math.round(6 * density), Math.round(10 * density), Math.round(6 * density),
-                    Math.round(4 * density));
-            title.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                    new int[]{0x00000000, 0xD9000000}));
-            card.addView(title, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM));
             card.setOnKeyListener(cardKeys);
             card.setOnClickListener(v -> playShelfCard(index));
             card.setOnFocusChangeListener((v, focused) -> {
@@ -2267,13 +2276,21 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
      * segments beside it, a hint that Up leads there; in the detail it is white, and OK on a card does what it says.
      */
     private void showShelfButtons(ContentShelf.Item item) {
-        boolean watch = item.action != null, big = shelfDetail;
+        boolean watch = item.action != null, big = shelfDetail, resume = item.resume != null || item.progress >= 0;
         heroWatch.setText("▶  " + (item.cta != null ? item.cta
-                : item.resume != null || item.progress >= 0 ? "Riprendi" : "Guarda il titolo"));
+                : resume ? (item.left != null ? "Riprendi · " + item.left : "Riprendi") : "Guarda il titolo"));
         heroWatch.setVisibility(watch ? View.VISIBLE : View.GONE);
+        // How far you got: a line at the pill's foot, so the badges above need no bar of their own.
+        if (resumeBar == null) {
+            resumeBar = new ResumeBar(density);
+            heroWatch.setBackground(new android.graphics.drawable.LayerDrawable(
+                    new Drawable[]{heroWatch.getBackground(), resumeBar}));
+        }
+        resumeBar.setProgress(item.progress, big);
         int h = (int) ((big ? 22 : 13) * density), v = (int) ((big ? 9 : 5) * density);
+        int under = item.progress >= 0 ? (int) ((big ? 4 : 3) * density) : 0;
         heroWatch.setTextSize(TypedValue.COMPLEX_UNIT_SP, big ? 16f : 12f);
-        heroWatch.setPadding(h, v, h + (int) (2 * density), v);
+        heroWatch.setPadding(h, v, h + (int) (2 * density), v + under);
         heroWatch.setAlpha(big ? 1f : 0.6f);
         heroWatch.setSelected(big);
         ViewGroup.MarginLayoutParams segs = (ViewGroup.MarginLayoutParams) heroSegs.getLayoutParams();
@@ -2316,17 +2333,19 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (card != null) card.performClick();
     }
 
-    /** Holding OK on a dock app opens the title its shelf is showing; false lets the tile do its usual long press. */
+    /**
+     * Fork: holding OK on an app picks it up to move it (reorder mode, as from Settings); arrows move it, OK or Back
+     * puts it down, Back again saves. "Altro" stays last. The title on the shelf now plays from the detail (Up).
+     */
     @Override
     public boolean onTileLongPressed(String pkg) {
-        ContentShelf.Item item = shelfShown;
-        if (item == null || item.action == null || pkg == null || !pkg.equals(shelfPkg)) return false;
-        try {
-            startActivity(item.action);
-            return true;
-        } catch (ActivityNotFoundException | SecurityException e) {
-            return false;
-        }
+        int pos = focusedTilePosition();
+        if (pos < 0) return false;
+        if (pos >= adapter.movableCount() || (!reordering && !beginReorder())) return true;
+        pickUp(pos);
+        okUpPending = true;   // the key-up of this same press must not put the tile straight down
+        Toast.makeText(this, R.string.reorder_carry_hint, Toast.LENGTH_LONG).show();
+        return true;
     }
 
     /** "Last opened yesterday, 9:40 PM", the time in white; nothing (but the same height) when it was never seen. */

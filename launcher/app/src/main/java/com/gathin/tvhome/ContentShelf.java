@@ -39,6 +39,8 @@ final class ContentShelf {
         String plot, tag, season, resume;
         /** What the play button says when it is not "Guarda il titolo" (Prime: "Cerca su Prime Video"). */
         String cta;
+        /** "mancano 23 min" on the Riprendi button; the detail's facts, "2024 · Thriller · 2 stagioni · ★ 7,8". */
+        String left, meta;
         int top;
         float progress = -1f;
         /** Came from Casa: a list without any is cached only briefly (Casa may still be on its first download). */
@@ -137,6 +139,7 @@ final class ContentShelf {
                 Item item = new Item(c.getString(1).trim(), line, image, intent(c.getString(7), pkg));
                 item.resume = episode(c.getString(3), c.getString(4), c.getString(2));
                 item.progress = c.getLong(11) > 0 && c.getLong(10) > 0 ? Math.min(1f, (float) c.getLong(10) / c.getLong(11)) : -1f;
+                item.left = timeLeft(c.getLong(10), c.getLong(11));
                 rows.add(item);
             }
         } catch (RuntimeException e) {
@@ -164,8 +167,10 @@ final class ContentShelf {
             String logo = column(c, "logo");
             if (!blank(logo)) out.logo = Uri.parse(logo);
             out.plot = column(c, "plot");
+            out.meta = column(c, "meta");
             out.resume = in.resume;
             out.progress = in.progress;
+            out.left = in.left;
             return out;
         } catch (RuntimeException e) {
             return in;   // Casa missing or offline: the app's own picture
@@ -179,6 +184,15 @@ final class ContentShelf {
         if (!blank(episode)) se.append('E').append(episode.trim());
         if (se.length() > 0) return se.toString();
         return blank(episodeTitle) ? null : episodeTitle.trim();
+    }
+
+    /** What is left of the episode, "mancano 23 min" or "mancano 1 h 5 min"; null when the app gave no times. */
+    static String timeLeft(long position, long duration) {
+        if (duration <= 0 || position <= 0 || position >= duration) return null;
+        long min = Math.max(1, Math.round((duration - position) / 60_000.0));
+        if (min == 1) return "manca 1 min";
+        if (min < 60) return "mancano " + min + " min";
+        return "mancano " + min / 60 + " h" + (min % 60 == 0 ? "" : " " + min % 60 + " min");
     }
 
     /** "Riprendi · S2E5 · 40%" from whichever parts the app filled in. */
@@ -208,6 +222,7 @@ final class ContentShelf {
                 item.tag = column(c, "tag");
                 item.season = column(c, "season");
                 item.cta = column(c, "cta");
+                item.meta = column(c, "meta");
                 int top = c.getColumnIndex("top");
                 item.top = top >= 0 ? c.getInt(top) : 0;
                 item.fromCasa = true;
@@ -270,15 +285,32 @@ final class ContentShelf {
         return i < 0 ? null : c.getString(i);
     }
 
-    /** Tonight's five from Casa as small pictures for Home's bar; null when Casa is not installed. */
-    static List<Bitmap> picks(Context ctx, int maxWidth) {
-        List<Bitmap> out = new ArrayList<>();
+    /** One of tonight's five: its title, a small picture, and for the first a full-screen backdrop (Home at rest). */
+    static final class Pick {
+        final long tmdb;
+        final String title;
+        final Bitmap image;
+        final Uri backdrop;
+
+        Pick(long tmdb, String title, Bitmap image, Uri backdrop) {
+            this.tmdb = tmdb;
+            this.title = title;
+            this.image = image;
+            this.backdrop = backdrop;
+        }
+    }
+
+    /** Tonight's five from Casa as small pictures for Home's bar and Home at rest; null when Casa is not installed. */
+    static List<Pick> picks(Context ctx, int maxWidth) {
+        List<Pick> out = new ArrayList<>();
         try (Cursor c = ctx.getContentResolver().query(Uri.parse("content://" + CASA + "/picks"), null, null, null, null)) {
             if (c == null) return null;
             while (c.moveToNext()) {
-                String image = column(c, "image");
+                String image = column(c, "image"), backdrop = column(c, "backdrop");
                 Bitmap b = blank(image) ? null : decode(ctx, Uri.parse(image), maxWidth);
-                if (b != null) out.add(b);
+                int id = c.getColumnIndex("tmdb");
+                if (b != null) out.add(new Pick(id < 0 ? 0 : c.getLong(id), column(c, "title"), b,
+                        blank(backdrop) ? null : Uri.parse(backdrop)));
             }
         } catch (RuntimeException e) {
             return null;

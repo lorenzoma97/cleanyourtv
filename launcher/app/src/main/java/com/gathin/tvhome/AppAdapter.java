@@ -58,14 +58,15 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         void onLibraryFocused();
         void onLibraryUp();
 
-        /** Fork lorenzoma97: holding OK on an app tile; true when the home screen handled it (content shelf). */
+        /** Fork lorenzoma97: holding OK on a tile; true when the home screen handled it (it picks the tile up to move). */
         default boolean onTileLongPressed(String pkg) {
             return false;
         }
     }
 
     static final class Entry {
-        static final int APP = 0, HOME_SETTINGS = 1, CARD = 2, EMPTY = 3;
+        /** LIBRARY (fork lorenzoma97): the "Altro" tile that opens the app library. */
+        static final int APP = 0, HOME_SETTINGS = 1, CARD = 2, EMPTY = 3, LIBRARY = 4;
 
         final int kind;
         final String label;
@@ -198,6 +199,8 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private final boolean animations;
     private final boolean advancedEffects;
     private final boolean showLibrary;
+    /** Fork lorenzoma97 (config library_tile): the "Altro" tile after the last app. */
+    private final boolean libraryTile;
     /** Packages with a leanback entry at the last reload(): their tiles launch with the leanback category. */
     private Set<String> leanbackPackages = new HashSet<>();
     private final boolean showHomeSettings;
@@ -228,6 +231,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         this.advancedEffects = cfg.animations && cfg.advancedEffects;
         this.showHomeSettings = cfg.showHomeSettingsShortcut;
         this.showLibrary = cfg.appLibrary;
+        this.libraryTile = cfg.libraryTile;
         this.reducedMotion = cfg.reducedMotion;
         this.focusOvershoot = cfg.focusOvershoot;
         this.rowsBelowDock = cfg.rowsBelowDock;
@@ -316,6 +320,10 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             fresh.add(new Entry(Entry.HOME_SETTINGS, ctx.getString(R.string.home_settings),
                     new ComponentName(ctx, HomeSettingsActivity.class), null,
                     ctx.getDrawable(R.drawable.ic_home_settings), null, 0));
+        }
+        if (libraryTile) {
+            fresh.add(new Entry(Entry.LIBRARY, ctx.getString(R.string.library_tile),
+                    new ComponentName(ctx, "library-tile"), null, ctx.getDrawable(R.drawable.ic_apps), null, 0));
         }
         docked = 0;
         while (docked < fresh.size() && isDocked(fresh.get(docked))) docked++;
@@ -472,6 +480,10 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     /** Opens the tile's activity by explicit component, with no extras: a card can name nothing else. */
     private void launch(Entry e) {
+        if (e.kind == Entry.LIBRARY) {
+            if (listener != null) listener.onLibraryRequested();
+            return;
+        }
         if (e.kind == Entry.HOME_SETTINGS) {
             ctx.startActivity(new Intent(ctx, HomeSettingsActivity.class)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
@@ -546,10 +558,11 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         return emptySlots > 0;
     }
 
-    /** Tiles that can be moved: everything but the "Default home" tile, which always stays last. */
+    /** Tiles that can be moved: everything but the "Default home" and "Altro" tiles, which always stay last. */
     int movableCount() {
         int n = items.size();
-        return n > 0 && items.get(n - 1).kind == Entry.HOME_SETTINGS ? n - 1 : n;
+        while (n > 0 && (items.get(n - 1).kind == Entry.HOME_SETTINGS || items.get(n - 1).kind == Entry.LIBRARY)) n--;
+        return n;
     }
 
     /** Keys of the movable tiles in their current order, for Order (empty dock slots are not tiles). */
