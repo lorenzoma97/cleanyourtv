@@ -41,6 +41,11 @@ public class RefreshJob extends JobService {
             } catch (Exception | LinkageError e) {
                 android.util.Log.w("Casa", "refresh failed: " + e);
             }
+            try {
+                Updater.check(getApplicationContext());   // only downloads; installing waits for the owner's OK
+            } catch (Exception e) {
+                android.util.Log.w("Casa", "update check failed: " + e);
+            }
             jobFinished(params, false);
         }, "casa-refresh");
         worker.setPriority(Thread.MIN_PRIORITY);

@@ -318,6 +318,17 @@ final class ContentShelf {
         return out;
     }
 
+    /** Casa's downloaded and verified update: {what it updates, an id}; null when there is none, or no Casa. */
+    static String[] update(Context ctx) {
+        try (Cursor c = ctx.getContentResolver().query(Uri.parse("content://" + CASA + "/update"), null, null, null, null)) {
+            if (c == null || !c.moveToFirst()) return null;
+            String apps = column(c, "apps"), id = column(c, "id");
+            return blank(apps) || blank(id) ? null : new String[]{apps, id};
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
     /** Bologna now from Casa: {city, temp, max, min, desc, icon, air, aqi}; null when Casa has no reading. */
     static String[] weather(Context ctx) {
         try (Cursor c = ctx.getContentResolver().query(Uri.parse("content://" + CASA + "/weather"), null, null, null, null)) {

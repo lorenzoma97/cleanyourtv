@@ -17,3 +17,6 @@ work/
 *.aab
 launcher/hs_err_pid*.log
 launcher/replay_pid*.log
+
+# Fork lorenzoma97: the CI copies themes/lorenzo/config.json here (bundled theme); never commit the copy.
+launcher/app/src/main/assets/theme.json

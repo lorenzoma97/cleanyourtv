@@ -35,6 +35,8 @@ import java.util.Map;
 final class Config {
     private static final String TAG = "TvHome.Config";
     static final String FILE_NAME = "config.json";
+    /** Fork lorenzoma97: the theme the fork's build puts in the APK, so it travels with each update. */
+    static final String BUNDLED_THEME = "theme.json";
     static final String WALLPAPER_NAME = "wallpaper.jpg";
     static final String SETTINGS_NAME = "launcher_settings";
     static final String ROWS_BELOW_DOCK_KEY = "rows_below_dock";
@@ -477,7 +479,8 @@ final class Config {
     private static void syncThemeChoices(Context ctx, SharedPreferences choices, File dir, File config) {
         File revision = dir == null ? null : new File(dir, THEME_REVISION_NAME);
         String token = revisionToken(revision);
-        String signature = fileStamp(config) + ":" + token;
+        String bundled = bundledText(ctx);
+        String signature = fileStamp(config) + ":" + token + (bundled == null ? "" : ":" + Integer.toHexString(bundled.hashCode()));
         String seen = choices.getString(THEME_SIGNATURE_KEY, null);
         if (seen == null) {
             // Existing preferences survive an app upgrade, unless the first launch follows an
@@ -520,10 +523,14 @@ final class Config {
      */
     private static JSONObject readOverlay(Context ctx, File file, boolean mounted) {
         File copy = new File(ctx.getFilesDir(), FILE_NAME);
-        if (!mounted) return read(copy);
+        if (!mounted) {
+            JSONObject kept = read(copy);
+            return kept != null ? kept : bundled(ctx);
+        }
         JSONObject json = read(file);
         if (json == null) {
             copy.delete();
+            return bundled(ctx);   // fork: nothing pushed, the theme built into the APK
         } else {
             try (FileOutputStream out = new FileOutputStream(copy)) {
                 out.write(json.toString().getBytes(StandardCharsets.UTF_8));
@@ -532,6 +539,31 @@ final class Config {
             }
         }
         return json;
+    }
+
+    /** The bundled theme (assets/theme.json, fork builds only) parsed; null when the APK has none or it is broken. */
+    private static JSONObject bundled(Context ctx) {
+        String text = bundledText(ctx);
+        if (text == null) return null;
+        try {
+            return new JSONObject(text);
+        } catch (Exception e) {
+            Log.w(TAG, "ignoring the bundled theme: " + e.getMessage());
+            return null;
+        }
+    }
+
+    private static String bundledText(Context ctx) {
+        try (InputStream in = ctx.getAssets().open(BUNDLED_THEME)) {
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            byte[] buf = new byte[4096];
+            int n;
+            while ((n = in.read(buf)) > 0 && out.size() <= 64 * 1024) out.write(buf, 0, n);
+            String text = out.toString("UTF-8");
+            return text.startsWith("\uFEFF") ? text.substring(1) : text;
+        } catch (IOException e) {
+            return null;   // upstream builds bundle no theme
+        }
     }
 
     private static JSONObject read(File file) {

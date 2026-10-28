@@ -41,6 +41,7 @@ public class HeroProvider extends ContentProvider {
         if (seg.size() == 1 && "weather".equals(seg.get(0))) return weather();
         if (seg.size() == 1 && "art".equals(seg.get(0))) return art(uri.getQueryParameter("t"));
         if (seg.size() == 1 && "picks".equals(seg.get(0))) return picks();
+        if (seg.size() == 1 && "update".equals(seg.get(0))) return update();
         MatrixCursor c = new MatrixCursor(COLUMNS);
         if (seg.size() != 2 || !"items".equals(seg.get(0))) return c;
         File f = Store.file(getContext(), "shelf.json");
@@ -117,6 +118,21 @@ public class HeroProvider extends ContentProvider {
                 // a missing thumbnail just leaves a shorter strip
             }
         }
+        return c;
+    }
+
+    /**
+     * One row when an update is downloaded and verified: what it updates ("Home e Casa") and an id for "Più tardi";
+     * none otherwise. Checks the release first when the last check is over 2 hours old (blocking, binder thread).
+     */
+    private Cursor update() {
+        MatrixCursor c = new MatrixCursor(new String[]{"apps", "id"});
+        Updater.checkIfStale(getContext());
+        List<File> ready = Updater.ready(getContext());
+        if (ready.isEmpty()) return c;
+        StringBuilder id = new StringBuilder();
+        for (File f : ready) id.append(f.getName()).append('@').append(f.lastModified()).append(' ');
+        c.addRow(new Object[]{Updater.names(ready), id.toString().trim()});
         return c;
     }
 

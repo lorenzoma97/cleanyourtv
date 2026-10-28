@@ -113,6 +113,15 @@ public class ShelfTest {
     }
 
     @Test
+    public void releaseSums() {
+        String a = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        java.util.Map<String, String> s = Updater.sums(a + "  tvhome-release.apk\n" + a.toUpperCase() + " *casa-release.apk\n\nbroken line\n");
+        assertEquals(2, s.size());
+        assertEquals(a, s.get("tvhome-release.apk"));
+        assertEquals(a, s.get("casa-release.apk"));   // binary marker and upper case as sha256sum may write them
+    }
+
+    @Test
     public void darkLogo() {
         int clear = 0x00000000, black = 0xFF101010, red = 0xFFE50914, yellow = 0xFFF5C518;
         assertTrue(Tmdb.darkLogo(new int[]{black, black, black, yellow, clear, clear, clear, clear, clear, clear}));

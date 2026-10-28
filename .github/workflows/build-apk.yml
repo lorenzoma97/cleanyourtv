@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
   push:
     branches: [casa]
-    paths: ["launcher/**", "addons/**", ".github/workflows/build-apk.yml"]
+    paths: ["launcher/**", "addons/**", "themes/lorenzo/**", ".github/workflows/build-apk.yml"]
 
 permissions:
   contents: write
@@ -39,6 +39,12 @@ jobs:
         run: |
           test -n "$SIGNING_KEYSTORE_B64" || { echo "Missing secret SIGNING_KEYSTORE_B64"; exit 1; }
           echo "$SIGNING_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/tvhome.p12"
+      # The home's settings travel inside the APK (Config.BUNDLED_THEME): one source, themes/lorenzo/config.json.
+      - name: Theme into the launcher
+        run: |
+          python3 -c 'import json,sys; json.load(open(sys.argv[1]))' themes/lorenzo/config.json
+          mkdir -p launcher/app/src/main/assets
+          cp themes/lorenzo/config.json launcher/app/src/main/assets/theme.json
       - name: Build launcher
         working-directory: launcher
         run: |

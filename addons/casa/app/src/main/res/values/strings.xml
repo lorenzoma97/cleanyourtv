@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Casa</string>
+    <string name="update_failed">Aggiornamento non installato</string>
     <string name="section">Scopri una nuova serie</string>
     <string name="all_genres">Tutte</string>
     <string name="draw_more">Pesca altre</string>

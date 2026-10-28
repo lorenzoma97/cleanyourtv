@@ -797,6 +797,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         super.onResume();
         updateWeather();
         loadDiscoverBar();
+        checkUpdate();
         // A festival that started or ended while Home was in the background: rebuild with or without it.
         if (festive != festival.active(LocalDate.now())) {
             recreate();
@@ -3636,6 +3637,66 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         cardPrompt = dialog;
         dialog.show();
         keep.requestFocus();
+    }
+
+    // ---- updates (fork lorenzoma97) ----------------------------------------------------------------
+
+    /** "Più tardi" asks again after this long, unless a newer update arrives. */
+    private static final long UPDATE_LATER_MS = 12 * 3600_000L;
+    private Dialog updatePrompt;
+
+    /** Asks Casa, off the main thread (it may check the release first), whether an update is ready to install. */
+    private void checkUpdate() {
+        if (!cinematic || updatePrompt != null) return;
+        Context app = getApplicationContext();
+        new Thread(() -> {
+            String[] update = ContentShelf.update(app);
+            if (update != null) handler.post(() -> showUpdatePrompt(update[0], update[1]));
+        }, "update-check").start();
+    }
+
+    /** "Aggiornamento pronto": Installa opens Casa's installer flow (the TV asks once more), Più tardi waits 12 hours. */
+    private void showUpdatePrompt(String apps, String id) {
+        if (updatePrompt != null || isFinishing() || isDestroyed() || reordering) return;
+        SharedPreferences prefs = getSharedPreferences(Config.SETTINGS_NAME, MODE_PRIVATE);
+        if (id.equals(prefs.getString("update_later_id", null))
+                && System.currentTimeMillis() - prefs.getLong("update_later_at", 0) < UPDATE_LATER_MS) return;
+        View panel = getLayoutInflater().inflate(R.layout.dialog_update, root, false);
+        ((TextView) panel.findViewById(R.id.updateBody)).setText(
+                "C'è una nuova versione di " + apps + ". La TV chiederà conferma prima di installarla.");
+        TextView later = panel.findViewById(R.id.btnLater), install = panel.findViewById(R.id.btnInstall);
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        dialog.setContentView(panel);
+        dialog.setCanceledOnTouchOutside(false);
+        Window w = dialog.getWindow();
+        if (w != null) {
+            w.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            w.setLayout((int) (440 * density), ViewGroup.LayoutParams.WRAP_CONTENT);
+            w.setDimAmount(0.6f);
+        }
+        later.setOnClickListener(v -> {
+            prefs.edit().putString("update_later_id", id).putLong("update_later_at", System.currentTimeMillis()).apply();
+            dialog.dismiss();
+        });
+        install.setOnClickListener(v -> {
+            dialog.dismiss();
+            try {
+                startActivity(new Intent().setClassName("it.lorenzoma97.casa", "it.lorenzoma97.casa.UpdateActivity")
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            } catch (ActivityNotFoundException | SecurityException e) {
+                Toast.makeText(this, "Aggiornamento non disponibile", Toast.LENGTH_SHORT).show();
+            }
+        });
+        dialog.setOnCancelListener(d -> later.performClick());   // Back: later
+        dialog.setOnDismissListener(d -> {
+            updatePrompt = null;
+            restartIdleClock();
+        });
+        root.removeCallbacks(showIdleClock);   // no "Home at rest" over the question
+        updatePrompt = dialog;
+        dialog.show();
+        install.requestFocus();
     }
 
     /** Writes the owner's decision and rebuilds the tiles; focus is left where it is. */
