@@ -16,9 +16,17 @@ import android.widget.TextView;
  * "Scopri" bar, Home at rest). Child 0 is the picture, so a thumbnail that loads later can be set on it.
  */
 final class TitleCard {
+    /** Past this many characters a small card drops the subtitle after ":" ("La regina Carlotta: Una storia di..."). */
+    static final int SHORT_TITLE = 22;
+
     private TitleCard() { }
 
     static FrameLayout make(Context ctx, Bitmap picture, String title, float textSp) {
+        return make(ctx, picture, title, textSp, false);
+    }
+
+    /** small: a 96x54 dp card (Scopri bar, the detail's row), one line of title, the subtitle left out. */
+    static FrameLayout make(Context ctx, Bitmap picture, String title, float textSp, boolean small) {
         float density = ctx.getResources().getDisplayMetrics().density;
         FrameLayout card = new FrameLayout(ctx);
         card.setBackgroundResource(R.drawable.hero_card);
@@ -31,11 +39,11 @@ final class TitleCard {
         card.addView(image, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT));
         TextView name = new TextView(ctx);
-        name.setText(title);
+        name.setText(small ? shortTitle(title) : title);
         name.setTextColor(0xFFFFFFFF);
         name.setTextSize(TypedValue.COMPLEX_UNIT_SP, textSp);
         name.setTypeface(ctx.getResources().getFont(R.font.outfit_medium));
-        name.setMaxLines(2);
+        name.setMaxLines(small ? 1 : 2);
         name.setEllipsize(TextUtils.TruncateAt.END);
         name.setLineSpacing(0f, 0.95f);
         int side = Math.round(textSp * 0.6f * density);
@@ -45,5 +53,14 @@ final class TitleCard {
         card.addView(name, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM));
         return card;
+    }
+
+    /** "La regina Carlotta: Una storia di Bridgerton" -> "La regina Carlotta"; short titles and the rest as they are. */
+    static String shortTitle(String title) {
+        if (title == null) return null;
+        String t = title.trim();
+        int colon = t.indexOf(':');
+        if (t.length() <= SHORT_TITLE || colon <= 0) return t;
+        return t.substring(0, colon).trim();
     }
 }

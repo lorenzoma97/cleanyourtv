@@ -118,30 +118,58 @@ final class Tmdb {
      * genre, seasons or Miniserie, TMDB rating once 20 people voted). Parts TMDB lacks are left out; null when none.
      */
     static String meta(JSONObject d) {
+        return meta(d, false);
+    }
+
+    /**
+     * season: the shelf shows a season badge next to it ("Nuova stagione 4", "Novità", "Miniserie"), so the year and
+     * the season count are left out: "Crime · ★ 8,3".
+     */
+    static String meta(JSONObject d, boolean season) {
         java.util.List<String> parts = new java.util.ArrayList<>();
         String date = d.isNull("first_air_date") ? "" : d.optString("first_air_date", "");
-        if (date.matches("\\d{4}.*")) parts.add(date.substring(0, 4));
+        if (!season && date.matches("\\d{4}.*")) parts.add(date.substring(0, 4));
         JSONArray genres = d.optJSONArray("genres");
         JSONObject genre = genres == null ? null : genres.optJSONObject(0);
-        if (genre != null && !genre.optString("name", "").trim().isEmpty()) parts.add(genre.optString("name").trim());
+        if (genre != null && !genre.optString("name", "").trim().isEmpty()) parts.add(genreIt(genre.optString("name")));
         int seasons = d.optInt("number_of_seasons", 0);
-        if ("Miniseries".equals(d.optString("type"))) parts.add("Miniserie");
-        else if (seasons > 0) parts.add(seasons == 1 ? "1 stagione" : seasons + " stagioni");
+        if (!season && "Miniseries".equals(d.optString("type"))) parts.add("Miniserie");
+        else if (!season && seasons > 0) parts.add(seasons == 1 ? "1 stagione" : seasons + " stagioni");
         if (d.optInt("vote_count", 0) >= 20 && d.optDouble("vote_average", 0) > 0) {
             parts.add(String.format(java.util.Locale.ITALY, "★ %.1f", d.optDouble("vote_average")));
         }
         return parts.isEmpty() ? null : String.join(" · ", parts);
     }
 
-    /** The plot cut at a sentence or word boundary near max characters (the shelf shows two lines). */
+    /** TMDB's it-IT names keep its own combined TV genres in English: the Italian words for them. */
+    static String genreIt(String name) {
+        String n = name == null ? "" : name.trim();
+        switch (n) {
+            case "Action & Adventure": return "Azione e avventura";
+            case "Sci-Fi & Fantasy": return "Fantascienza e fantasy";
+            case "War & Politics": return "Guerra e politica";
+            case "Kids": return "Per ragazzi";
+            case "News": return "Attualità";
+            case "Talk": return "Talk show";
+            case "Soap": return "Soap opera";
+            default: return n;
+        }
+    }
+
+    /**
+     * The plot cut near max characters (the shelf shows two lines): at a sentence end when that leaves at least 60
+     * characters (half of max when max is small), else at a word, without a dangling comma or dash before the "…".
+     */
     static String shortPlot(String overview, int max) {
         if (overview == null) return "";
         String s = overview.trim().replaceAll("\\s+", " ");
         if (s.length() <= max) return s;
-        int cut = s.lastIndexOf(". ", max);
-        if (cut > max / 2) return s.substring(0, cut + 1);
+        int cut = -1;
+        for (String end : new String[]{". ", "! ", "? "}) cut = Math.max(cut, s.lastIndexOf(end, max - 1));
+        if (cut + 1 >= Math.min(60, max / 2)) return s.substring(0, cut + 1);
         cut = s.lastIndexOf(' ', max);
-        return (cut > 0 ? s.substring(0, cut) : s.substring(0, max)) + "…";
+        String head = cut > 0 ? s.substring(0, cut) : s.substring(0, max);
+        return head.replaceAll("[\\s,;:\\-–—]+$", "") + "…";
     }
 
     /** YouTube key of the trailer: Italian first, then English; teasers only when there is no trailer. */

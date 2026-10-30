@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- "Tutte le serie": the draw card's shape in white, so the two buttons read as a pair but not the same. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <corners android:radius="10dp" />
+    <solid android:color="#14FFFFFF" />
+    <stroke android:width="1dp" android:color="#59FFFFFF" />
+</shape>

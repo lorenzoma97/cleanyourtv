@@ -29,6 +29,26 @@ public class ContentShelfTest {
     }
 
     @Test
+    public void buttonSaysWhatOkDoes() {
+        assertEquals("▶  Guarda su Netflix", ContentShelf.buttonText(true, null, false, null, "Netflix"));
+        assertEquals("▶  Cerca su Prime Video", ContentShelf.buttonText(true, "Cerca su Prime Video", false, null, "Prime Video"));
+        assertEquals("▶  Riprendi · mancano 44 min", ContentShelf.buttonText(true, null, true, "mancano 44 min", "Netflix"));
+        assertEquals("▶  Riprendi", ContentShelf.buttonText(true, null, true, null, "Netflix"));
+        assertEquals("Apri RaiPlay", ContentShelf.buttonText(false, null, false, null, "RaiPlay"));   // no title link
+        assertEquals("Apri RaiPlay", ContentShelf.buttonText(false, null, true, null, "RaiPlay"));
+        assertEquals("Apri l'app", ContentShelf.buttonText(false, null, false, null, null));
+    }
+
+    @Test
+    public void smallCardsDropTheSubtitle() {
+        assertEquals("La regina Carlotta", TitleCard.shortTitle("La regina Carlotta: Una storia di Bridgerton"));
+        assertEquals("Andor: Stagione 2", TitleCard.shortTitle("Andor: Stagione 2"));   // short enough as it is
+        assertEquals("Una serie dal titolo molto lungo", TitleCard.shortTitle(" Una serie dal titolo molto lungo "));
+        assertEquals(": Senza testa che dura a lungo", TitleCard.shortTitle(": Senza testa che dura a lungo"));
+        assertNull(TitleCard.shortTitle(null));
+    }
+
+    @Test
     public void darkLogo() {
         int clear = 0x00000000, black = 0xFF101010, darkRed = 0xFF500808, red = 0xFFE50914, yellow = 0xFFF5C518;
         assertTrue(ContentShelf.darkLogo(new int[]{black, black, black, clear, clear, clear, clear, clear, clear, clear}));

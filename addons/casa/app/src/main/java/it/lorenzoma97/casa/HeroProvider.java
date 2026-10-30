@@ -25,7 +25,9 @@ import java.util.List;
  */
 public class HeroProvider extends ContentProvider {
     static final String AUTHORITY = "it.lorenzoma97.casa.hero";
-    private static final String[] COLUMNS = {"title", "line", "image", "action", "logo", "plot", "top", "tag", "season", "cta", "meta"};
+    /** next: "Nuovo episodio ven 6 nov" when one is due within two weeks (added after the redesign; may be null). */
+    private static final String[] COLUMNS = {"title", "line", "image", "action", "logo", "plot", "top", "tag", "season", "cta", "meta",
+            "next"};
     private static final String[] WEATHER = {"city", "temp", "max", "min", "desc", "icon", "air", "aqi"};
     private static final long URL_CACHE_BYTES = 15L * 1024 * 1024;
 
@@ -57,7 +59,8 @@ public class HeroProvider extends ContentProvider {
                         "content://" + AUTHORITY + "/img/" + x.optString("image"), x.isNull("action") ? null : x.optString("action"),
                         logo, x.optString("plot"), x.optInt("top", 0),
                         x.isNull("tag") ? null : x.optString("tag"), x.isNull("season") ? null : x.optString("season"),
-                        x.isNull("cta") ? null : x.optString("cta"), x.isNull("meta") ? null : x.optString("meta")});
+                        x.isNull("cta") ? null : x.optString("cta"), x.isNull("meta") ? null : x.optString("meta"),
+                        x.isNull("next") ? null : x.optString("next")});
             }
         } catch (Exception ignored) {
             // a broken shelf.json means an empty shelf, never a crash in the launcher's process
@@ -97,7 +100,7 @@ public class HeroProvider extends ContentProvider {
         JSONObject content = Shelf.content(getContext(), false);
         JSONObject pool = content == null ? null : content.optJSONObject("pool");
         if (pool == null) return c;
-        java.util.List<Long> ids = Pool.tonight(pool, Store.tonight(getContext()), Store.seen(getContext()), 5, new java.util.Random());
+        java.util.List<Long> ids = Pool.tonight(pool, Store.tonight(getContext()), Store.hidden(getContext()), 5, new java.util.Random());
         Store.saveTonight(getContext(), ids);
         for (Long id : ids) {
             JSONObject d = Tmdb.details(getContext(), id);

@@ -12,7 +12,7 @@
     <string name="good_afternoon">Buon pomeriggio</string>
     <string name="good_evening">Buonasera</string>
     <string name="good_night">Buonanotte</string>
-    <string name="offline">Offline</string>
+    <string name="offline">Non connessa</string>
     <string name="not_available">Non disponibile su questa TV</string>
     <string name="cant_open">Impossibile aprire %1$s</string>
     <string name="stats_cpu">CPU %1$d%%</string>

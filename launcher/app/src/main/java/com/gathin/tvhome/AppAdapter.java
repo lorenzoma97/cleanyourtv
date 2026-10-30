@@ -82,6 +82,8 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         /** Fork lorenzoma97: the banner at the tile's own pixels (sharpBanner), made on the first bind at that width. */
         Drawable sharp;
         int sharpW;
+        /** Fork lorenzoma97: which picture the banner is (bundled name, or the APK it came from), for sharpCache. */
+        String bannerKey;
 
         Entry(String label, ComponentName component, Drawable banner, Drawable icon) {
             this(APP, label, component, banner, icon, null, 0);
@@ -218,6 +220,11 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private final Map<String, String> appLabels, appBanners;
     private final List<Entry> items = new ArrayList<>();
     /**
+     * Fork lorenzoma97: sharpBanner's pictures by Entry.bannerKey, kept across reload() and clear(): a return to Home
+     * after onTrimMemory no longer shrinks every banner again on the main thread. About 35 KB a tile.
+     */
+    private final Map<String, Bitmap> sharpCache = new HashMap<>();
+    /**
      * Fork lorenzoma97: on the cinematic shelf no name under any tile. The banners carry the app names, and the room
      * the label kept left a wide gap between the rows of the single app panel.
      */
@@ -293,16 +300,21 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                     appLabels.containsKey(pkg) ? appLabels.get(pkg) : String.valueOf(ri.loadLabel(pm)), pkg);
             if (!seen.add(pkg + '\n' + label)) continue;
             Drawable banner = bundledBanner(appBanners.get(pkg));
+            // Fork: an app's own banner is keyed by its APK path, which changes when the app is updated.
+            String bannerKey = banner != null ? appBanners.get(pkg)
+                    : ri.activityInfo.applicationInfo.sourceDir + "#" + ri.activityInfo.name;
             if (banner == null) banner = loadBanner(pm, ri);
             // The icon is only drawn (and sampled for the glow) when there is no banner, so a tile with a
             // banner skips loading and decoding it.
             Drawable icon = banner == null ? ri.loadIcon(pm) : null;
-            if (card != null) {
-                fresh.add(new Entry(Entry.CARD, label, component, banner, icon, card.caption, card.accent));
-            } else {
-                fresh.add(new Entry(label, component, banner, icon));
-            }
+            Entry entry = card != null ? new Entry(Entry.CARD, label, component, banner, icon, card.caption, card.accent)
+                    : new Entry(label, component, banner, icon);
+            entry.bannerKey = bannerKey;
+            fresh.add(entry);
         }
+        Set<String> live = new HashSet<>();
+        for (Entry e : fresh) live.add(e.bannerKey);
+        sharpCache.keySet().retainAll(live);   // removed or updated apps let go of their old picture
         Collections.sort(fresh, (a, b) -> {
             // The owner's own order first; tiles it does not know (new installs) follow by the rule below.
             int saved = Order.compare(savedRanks, a.component.flattenToShortString(), b.component.flattenToShortString());
@@ -393,6 +405,12 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         int[] size = coverSize(iw, ih, Math.round(w * zoom), Math.round(h * zoom));
         if (size[0] >= iw) return d;   // no bigger than the tile already
         if (e.sharp != null && e.sharpW == size[0]) return e.sharp;
+        Bitmap kept = e.bannerKey == null ? null : sharpCache.get(e.bannerKey);
+        if (kept != null && kept.getWidth() == size[0] && kept.getHeight() == size[1]) {
+            e.sharp = new BitmapDrawable(ctx.getResources(), kept);   // a drawable of its own: one per tile view
+            e.sharpW = size[0];
+            return e.sharp;
+        }
         Bitmap cur = Bitmap.createBitmap(iw, ih, Bitmap.Config.ARGB_8888);
         d.setBounds(0, 0, iw, ih);
         d.draw(new Canvas(cur));
@@ -406,6 +424,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         out.setDensity(ctx.getResources().getDisplayMetrics().densityDpi);
         e.sharp = new BitmapDrawable(ctx.getResources(), out);
         e.sharpW = size[0];
+        if (e.bannerKey != null) sharpCache.put(e.bannerKey, out);
         return e.sharp;
     }
 

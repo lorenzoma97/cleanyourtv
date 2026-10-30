@@ -3,6 +3,7 @@ package it.lorenzoma97.casa;
 import org.json.JSONObject;
 import org.junit.Test;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -29,8 +30,37 @@ public class ShelfTest {
     public void lines() {
         assertEquals("Top 10 in Italia · n. 1 · Miniserie", Shelf.topLine(1, "Below: Limited Series"));
         assertEquals("Top 10 in Italia · n. 7", Shelf.topLine(7, null));
-        assertEquals("Nuova serie", Shelf.novitaLine("new_series", 1));
+        assertEquals("Novità", Shelf.novitaLine("new_series", 1));
         assertEquals("Nuova stagione 4", Shelf.novitaLine("new_season", 4));
+    }
+
+    @Test
+    public void seasonTagSaysWhen() throws Exception {
+        LocalDate today = LocalDate.of(2026, 10, 30);
+        JSONObject d = new JSONObject("{\"seasons\":[{\"season_number\":2,\"air_date\":\"2025-03-01\"},"
+                + "{\"season_number\":3,\"air_date\":\"2026-10-09\"},{\"season_number\":4,\"air_date\":null}]}");
+        assertEquals("Nuova stagione 3 · dal 9 ottobre", Shelf.seasonTag("Nuova stagione 3", d, 3, today));
+        assertEquals("Nuova stagione 2 · dal 1° marzo 2025", Shelf.seasonTag("Nuova stagione 2", d, 2, today));
+        assertEquals("Nuova stagione 4", Shelf.seasonTag("Nuova stagione 4", d, 4, today));   // no date yet
+        assertEquals("Nuova stagione 5", Shelf.seasonTag("Nuova stagione 5", d, 5, today));   // not in TMDB yet
+        assertEquals("Novità", Shelf.seasonTag("Novità", d, 0, today));
+        assertNull(Shelf.seasonTag(null, d, 3, today));
+    }
+
+    @Test
+    public void nextEpisodeWithinTwoWeeks() throws Exception {
+        LocalDate today = LocalDate.of(2026, 10, 30);
+        assertEquals("Nuovo episodio ven 6 nov", Shelf.nextEpisode(next("2026-11-06"), today));
+        assertEquals("Nuovo episodio ven 30 ott", Shelf.nextEpisode(next("2026-10-30"), today));
+        assertEquals("Nuovo episodio ven 13 nov", Shelf.nextEpisode(next("2026-11-13"), today));   // day 14
+        assertNull(Shelf.nextEpisode(next("2026-11-14"), today));
+        assertNull(Shelf.nextEpisode(next("2026-10-29"), today));                                  // already out
+        assertNull(Shelf.nextEpisode(new JSONObject("{\"next_episode_to_air\":null}"), today));
+        assertNull(Shelf.nextEpisode(new JSONObject("{\"next_episode_to_air\":{\"air_date\":null}}"), today));
+    }
+
+    private static JSONObject next(String date) throws Exception {
+        return new JSONObject("{\"next_episode_to_air\":{\"air_date\":\"" + date + "\",\"episode_number\":4}}");
     }
 
     @Test
@@ -86,6 +116,9 @@ public class ShelfTest {
         assertNull(nf.get(0).tag);
         assertEquals(0, nf.get(Shelf.NETFLIX_TOP).top);
         assertEquals("Nuova stagione 3", nf.get(Shelf.NETFLIX_TOP).tag);
+        assertEquals(3, nf.get(Shelf.NETFLIX_TOP).newSeason);   // its start date goes on the tag
+        assertEquals(0, nf.get(Shelf.NETFLIX_TOP + 1).newSeason);
+        assertEquals(0, nf.get(0).newSeason);
     }
 
     @Test
@@ -103,6 +136,33 @@ public class ShelfTest {
     }
 
     @Test
+    public void plotCut() {
+        // A sentence end from 60 characters on wins over a longer cut at a word.
+        String first = "Una detective di Oslo torna nella città natale per un caso che riapre vecchie ferite.";
+        String plot = first + " " + "Intanto il fratello sparisce e lei deve scegliere tra il lavoro e la famiglia, mentre la neve cade.";
+        assertEquals(first, Tmdb.shortPlot(plot, 170));
+        // No dangling punctuation before the ellipsis.
+        assertEquals("Alfa beta gamma delta…", Tmdb.shortPlot("Alfa beta gamma delta, epsilon zeta eta theta", 24));
+        assertEquals("Alfa beta gamma…", Tmdb.shortPlot("Alfa beta gamma – delta epsilon zeta", 17));
+        assertEquals("Alfa beta gamma…", Tmdb.shortPlot("Alfa beta gamma: delta epsilon zeta", 17));
+        assertEquals("Alfa beta gamma…", Tmdb.shortPlot("Alfa beta gamma; delta epsilon zeta", 17));
+    }
+
+    @Test
+    public void genresInItalian() throws Exception {
+        assertEquals("Azione e avventura", Tmdb.genreIt("Action & Adventure"));
+        assertEquals("Fantascienza e fantasy", Tmdb.genreIt("Sci-Fi & Fantasy"));
+        assertEquals("Guerra e politica", Tmdb.genreIt("War & Politics"));
+        assertEquals("Per ragazzi", Tmdb.genreIt("Kids"));
+        assertEquals("Attualità", Tmdb.genreIt("News"));
+        assertEquals("Talk show", Tmdb.genreIt("Talk"));
+        assertEquals("Soap opera", Tmdb.genreIt("Soap"));
+        assertEquals("Dramma", Tmdb.genreIt(" Dramma "));
+        assertEquals("2023 · Fantascienza e fantasy · 1 stagione", Tmdb.meta(new JSONObject("{\"first_air_date\":\"2023-05-02\","
+                + "\"genres\":[{\"name\":\"Sci-Fi & Fantasy\"}],\"number_of_seasons\":1}")));
+    }
+
+    @Test
     public void meta() throws Exception {
         assertEquals("2024 · Crime · 2 stagioni · ★ 7,8", Tmdb.meta(new JSONObject("{\"first_air_date\":\"2024-03-01\","
                 + "\"genres\":[{\"name\":\"Crime\"},{\"name\":\"Dramma\"}],\"number_of_seasons\":2,"
@@ -110,6 +170,11 @@ public class ShelfTest {
         assertEquals("2025 · Miniserie", Tmdb.meta(new JSONObject("{\"first_air_date\":\"2025-01-09\","
                 + "\"type\":\"Miniseries\",\"number_of_seasons\":1,\"vote_average\":9.5,\"vote_count\":4}")));
         assertNull(Tmdb.meta(new JSONObject("{\"first_air_date\":null,\"genres\":[]}")));
+        // Next to a season badge: no year, no season count ("NUOVA STAGIONE 4 · Crime · ★ 8,3").
+        assertEquals("Crime · ★ 8,3", Tmdb.meta(new JSONObject("{\"first_air_date\":\"2019-03-01\","
+                + "\"genres\":[{\"name\":\"Crime\"}],\"number_of_seasons\":4,\"vote_average\":8.27,\"vote_count\":900}"), true));
+        assertEquals("Thriller", Tmdb.meta(new JSONObject("{\"first_air_date\":\"2026-10-01\",\"type\":\"Miniseries\","
+                + "\"genres\":[{\"name\":\"Thriller\"}],\"number_of_seasons\":1}"), true));
     }
 
     @Test

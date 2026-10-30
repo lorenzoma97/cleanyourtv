@@ -4,15 +4,19 @@
     <string name="update_failed">Aggiornamento non installato</string>
     <string name="section">Scopri una nuova serie</string>
     <string name="all_genres">Tutte</string>
-    <string name="draw_more">Pesca altre</string>
-    <string name="hint">OK  guarda   ·   tieni premuto OK  trailer o già vista   ·   ▲ torna alle app</string>
+    <string name="all_genres_long">Tutti i generi</string>
+    <string name="draw_more">Pesca altre cinque</string>
+    <string name="all_series">Tutte le serie ›</string>
+    <string name="all_title">%1$s · %2$d serie</string>
+    <string name="hint">OK  guarda   ·   tieni premuto OK  trailer, già vista, non oggi   ·   ▲ torna alle app</string>
     <string name="loading">Un attimo…</string>
-    <string name="no_data">Nessun dato ancora: controlla la rete, oppure la chiave TMDB in Android/data/it.lorenzoma97.casa/files/tmdb.txt</string>
+    <string name="no_data">Nessuna serie da mostrare. Controlla la connessione.</string>
     <string name="all_seen">Le hai viste tutte! Scegli un altro genere.</string>
     <string name="no_app">App non installata: %1$s</string>
     <string name="no_trailer">Trailer non disponibile</string>
     <string name="menu_trailer">Guarda il trailer</string>
     <string name="menu_seen">Già vista, non propormela più</string>
+    <string name="menu_not_today">Non oggi</string>
     <string name="menu_cancel">Annulla</string>
     <string name="credits">Dati e immagini: TMDB. Questo prodotto usa l\'API TMDB ma non è approvato né certificato da TMDB. Disponibilità: JustWatch. Classifica: IMDb (uso personale).</string>
 </resources>

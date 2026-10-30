@@ -25,6 +25,7 @@ import org.json.JSONObject;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -37,25 +38,41 @@ import java.util.concurrent.Executors;
  * "Scopri una nuova serie", the lower section of Home: the launcher opens it when focus goes down from the last row
  * of apps, and Up from the genres slides back. Five series drawn from the best of the chosen genre on our services,
  * shown as cards; the focused one fills the screen with its logo, badges and plot. OK plays it (Netflix opens the
- * title itself), holding OK offers the trailer or "gia vista" (never proposed again), "Pesca altre" draws five new.
+ * title itself), holding OK offers the trailer, "Già vista" (never proposed again) or "Non oggi" (not again today),
+ * "Pesca altre cinque" draws five new, "Tutte le serie" lists the whole genre in a grid (Back returns to the five).
  */
 public class SerieActivity extends Activity {
     private static final int PICKS = 5;
+    /** The grid of "Tutte le serie": as many cards a row as the five and their two buttons. */
+    private static final int GRID_COLUMNS = 6;
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
     private final Random random = new Random();
     private final List<TextView> pills = new ArrayList<>();
     private final List<View> cards = new ArrayList<>();
     private final Map<Long, JSONObject> details = new HashMap<>();
+    /** Names of the cards on screen, for the Prime search and the menu before a card's details are in memory. */
+    private final Map<Long, String> names = new HashMap<>();
     private List<Long> picks = new ArrayList<>();
     private JSONObject content, pool;
     private String genre;              // null = Tutte
+    private String genreLabel;
     private long shown = -1;           // the series in the head and behind it
     private int token;
     private boolean landing;           // the next head update plays the "thrown die" entry
 
+    /** "Tutte le serie": the grid is open, its titles, and a token that drops the pictures of a closed grid. */
+    private boolean gridOpen;
+    private List<Long> gridIds = new ArrayList<>();
+    private int gridToken;
+    private long gridFocus = -1, shownBeforeGrid = -1;
+    /** The head follows the grid only where focus rests: a run along the rows does not decode every backdrop. */
+    private final Runnable gridHead = () -> {
+        if (gridOpen && gridFocus > 0) showHead(gridFocus);
+    };
+
     private ImageView backdrop, logo;
-    private TextView title, overview;
+    private TextView title, overview, hint;
     private LinearLayout chips;
 
     @Override
@@ -66,6 +83,7 @@ public class SerieActivity extends Activity {
         logo = findViewById(R.id.logo);
         title = findViewById(R.id.title);
         overview = findViewById(R.id.overview);
+        hint = findViewById(R.id.hint);
         chips = findViewById(R.id.chips);
         title.setText(R.string.loading);
         buildCards();
@@ -79,6 +97,7 @@ public class SerieActivity extends Activity {
     @Override
     protected void onDestroy() {
         io.shutdownNow();
+        main.removeCallbacks(gridHead);
         super.onDestroy();
     }
 
@@ -88,10 +107,15 @@ public class SerieActivity extends Activity {
         overridePendingTransition(R.anim.hold, R.anim.slide_down_out);
     }
 
-    /** Up from the genres goes back to the apps, like scrolling back to the top of Home. */
+    /** Up from the genres goes back to the apps, like scrolling back to the top of Home; Back closes the grid first. */
     @Override
     public boolean dispatchKeyEvent(KeyEvent e) {
-        if (e.getAction() == KeyEvent.ACTION_DOWN && e.getKeyCode() == KeyEvent.KEYCODE_DPAD_UP) {
+        int code = e.getKeyCode();
+        if (gridOpen && (code == KeyEvent.KEYCODE_BACK || code == KeyEvent.KEYCODE_ESCAPE)) {
+            if (e.getAction() == KeyEvent.ACTION_DOWN && e.getRepeatCount() == 0) closeAll();
+            return true;
+        }
+        if (e.getAction() == KeyEvent.ACTION_DOWN && code == KeyEvent.KEYCODE_DPAD_UP) {
             View f = getCurrentFocus();
             if (f != null && pills.contains(f)) {
                 finish();
@@ -129,6 +153,7 @@ public class SerieActivity extends Activity {
         p.setNextFocusDownId(View.NO_ID);
         p.setOnClickListener(v -> {
             genre = code;
+            genreLabel = code == null ? null : label;
             for (TextView x : pills) x.setSelected(x == p);
             draw(null);
             cards.get(0).requestFocus();
@@ -137,26 +162,41 @@ public class SerieActivity extends Activity {
         row.addView(p);
     }
 
+    /** The five picks, then "Pesca altre cinque" and "Tutte le serie", the two narrower. */
     private void buildCards() {
         LinearLayout row = findViewById(R.id.cards);
-        for (int i = 0; i <= PICKS; i++) {
+        for (int i = 0; i <= PICKS + 1; i++) {
             View card = LayoutInflater.from(this).inflate(R.layout.card, row, false);
             final int slot = i;
-            if (i == PICKS) {
+            if (i >= PICKS) {
+                boolean all = i == PICKS + 1;
                 card.findViewById(R.id.draw).setVisibility(View.VISIBLE);
                 card.findViewById(R.id.svc).setVisibility(View.GONE);
-                card.setBackgroundResource(R.drawable.card_draw);
-                card.setOnClickListener(v -> draw(null));
+                ((LinearLayout.LayoutParams) card.getLayoutParams()).weight = 0.75f;
+                if (all) {
+                    ImageView icon = card.findViewById(R.id.drawIcon);
+                    icon.setImageResource(R.drawable.ic_grid);
+                    icon.setImageTintList(android.content.res.ColorStateList.valueOf(0xFFFFFFFF));
+                    TextView label = card.findViewById(R.id.drawText);
+                    label.setText(R.string.all_series);
+                    label.setTextColor(0xFFFFFFFF);
+                }
+                card.setBackgroundResource(all ? R.drawable.card_all : R.drawable.card_draw);
+                card.setOnClickListener(v -> {
+                    if (all) openAll(0);
+                    else draw(null);
+                });
             } else {
-                card.setOnClickListener(v -> watch(slot));
+                card.setOnClickListener(v -> {
+                    if (slot < picks.size()) watch(picks.get(slot));
+                });
                 card.setOnLongClickListener(v -> {
-                    menu(slot);
+                    if (slot < picks.size()) menu(picks.get(slot), slot);
                     return true;
                 });
             }
             card.setOnFocusChangeListener((v, focused) -> {
-                v.animate().scaleX(focused ? 1.08f : 1f).scaleY(focused ? 1.08f : 1f).setDuration(160).start();
-                v.setElevation(focused ? dp(8) : 0);
+                grow(v, focused);
                 if (focused && slot < picks.size()) showHead(picks.get(slot));
             });
             cards.add(card);
@@ -164,21 +204,26 @@ public class SerieActivity extends Activity {
         }
     }
 
-    /** Five new picks for the genre (keepOthers: replace only that slot, after "gia vista"). */
+    private void grow(View v, boolean focused) {
+        v.animate().scaleX(focused ? 1.08f : 1f).scaleY(focused ? 1.08f : 1f).setDuration(160).start();
+        v.setElevation(focused ? dp(8) : 0);
+    }
+
+    /** Five new picks for the genre (slot: replace only that one, after "Già vista" or "Non oggi"). */
     private void draw(Integer slot) {
         if (pool == null) return;
         HashSet<Long> avoid = new HashSet<>(picks);
         if (slot == null) {
             if (genre == null && picks.isEmpty()) {
                 // First open: tonight's five, the same Home's bar shows.
-                picks = Pool.tonight(pool, Store.tonight(this), Store.seen(this), PICKS, random);
+                picks = Pool.tonight(pool, Store.tonight(this), Store.hidden(this), PICKS, random);
             } else {
-                picks = Pool.pick(pool, genre, Store.seen(this), avoid, PICKS, random);
+                picks = Pool.pick(pool, genre, Store.hidden(this), avoid, PICKS, random);
             }
             if (genre == null) Store.saveTonight(this, picks);
             landing = true;
         } else {
-            List<Long> one = Pool.pick(pool, genre, Store.seen(this), avoid, 1, random);
+            List<Long> one = Pool.pick(pool, genre, Store.hidden(this), avoid, 1, random);
             if (one.isEmpty()) picks.remove((int) slot);
             else picks.set(slot, one.get(0));
             if (genre == null) Store.saveTonight(this, picks);
@@ -190,7 +235,7 @@ public class SerieActivity extends Activity {
             card.setFocusable(i < picks.size());
             if (i >= picks.size()) continue;
             if (slot != null && i != slot) continue;
-            fillCard(card, picks.get(i), t);
+            fillCard(card, picks.get(i), t, false);
         }
         if (picks.isEmpty()) {
             shown = -1;
@@ -207,30 +252,138 @@ public class SerieActivity extends Activity {
         showHead(picks.get(focused >= 0 && focused < picks.size() ? focused : 0));
     }
 
-    private void fillCard(View card, long id, int t) {
-        ((TextView) card.findViewById(R.id.name)).setText("");
+    /**
+     * The card's picture and name, loaded off the main thread. grid: a small picture (w300, the grid can hold a
+     * hundred) and details not kept in memory; the five keep theirs for the head.
+     */
+    private void fillCard(View card, long id, int t, boolean grid) {
+        ((TextView) card.findViewById(R.id.name)).setText(names.containsKey(id) ? names.get(id) : "");
         ((ImageView) card.findViewById(R.id.img)).setImageDrawable(null);
         JSONObject item = Pool.item(pool, id);
         ((TextView) card.findViewById(R.id.svc)).setText(serviceName(Pool.service(item)));
-        int width = dp(260);
+        int width = dp(grid ? 140 : 260);
         io.execute(() -> {
-            JSONObject d = details(id);
+            JSONObject d = grid ? Tmdb.details(this, id) : details(id);
             Bitmap thumb = null;
             String path = d == null ? null : Tmdb.backdrop(d);
             if (path != null) {
                 try {
-                    thumb = decode(Tmdb.image(this, "pool", path, "w780"), width);
+                    thumb = decode(Tmdb.image(this, "pool", path, grid ? "w300" : "w780"), width);
                 } catch (Exception ignored) {
                 }
             }
             Bitmap img = thumb;
+            String name = d == null ? null : d.optString("name");
             main.post(() -> {
-                if (t != token || isDestroyed()) return;
-                ((TextView) card.findViewById(R.id.name)).setText(d == null ? "" : d.optString("name"));
+                if (isDestroyed() || t != (grid ? gridToken : token)) return;
+                if (name != null) names.put(id, name);
+                ((TextView) card.findViewById(R.id.name)).setText(name == null ? "" : name);
                 ((ImageView) card.findViewById(R.id.img)).setImageBitmap(img);
             });
         });
     }
+
+    // ---- Tutte le serie ---------------------------------------------------------------------------
+
+    /**
+     * The whole pool of the chosen genre (already watched left out), best first, six a row in a scrolling grid in
+     * place of the genres and the five. Pictures load a few rows around the focus. Back returns to the five.
+     */
+    private void openAll(int focusIndex) {
+        if (pool == null) return;
+        gridIds = Pool.candidates(pool, genre, Store.seen(this), Collections.emptySet());
+        if (gridIds.isEmpty()) {
+            Toast.makeText(this, R.string.all_seen, Toast.LENGTH_SHORT).show();
+            closeAll();   // the last one was just marked as watched
+            return;
+        }
+        if (!gridOpen) shownBeforeGrid = shown;
+        gridOpen = true;
+        int t = ++gridToken;
+        LinearLayout rows = findViewById(R.id.allRows);
+        rows.removeAllViews();
+        View first = null;
+        for (int r = 0; r * GRID_COLUMNS < gridIds.size(); r++) {
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setClipChildren(false);
+            LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+            rlp.bottomMargin = dp(14);
+            for (int c = 0; c < GRID_COLUMNS; c++) {
+                int index = r * GRID_COLUMNS + c;
+                View card = LayoutInflater.from(this).inflate(R.layout.card, row, false);
+                row.addView(card);
+                if (index >= gridIds.size()) {
+                    card.setVisibility(View.INVISIBLE);   // keeps the last row's cards as wide as the others
+                    card.setFocusable(false);
+                    continue;
+                }
+                long id = gridIds.get(index);
+                int rowIndex = r;
+                card.setOnClickListener(v -> watch(id));
+                card.setOnLongClickListener(v -> {
+                    menu(id, -1);
+                    return true;
+                });
+                card.setOnFocusChangeListener((v, focused) -> {
+                    grow(v, focused);
+                    if (!focused) return;
+                    fillRows(rowIndex, t);
+                    gridFocus = id;
+                    main.removeCallbacks(gridHead);
+                    main.postDelayed(gridHead, 180);
+                });
+                if (index == Math.min(focusIndex, gridIds.size() - 1)) first = card;
+            }
+            rows.addView(row, rlp);
+        }
+        TextView heading = findViewById(R.id.allTitle);
+        heading.setText(getString(R.string.all_title, genreLabel == null ? getString(R.string.all_genres_long) : genreLabel,
+                gridIds.size()));
+        // Room for two rows under the head: the hint goes and the plot keeps two lines.
+        hint.setVisibility(View.GONE);
+        overview.setMaxLines(2);
+        title.setMaxLines(1);
+        findViewById(R.id.all).setVisibility(View.VISIBLE);
+        fillRows(0, t);
+        if (first != null) first.requestFocus();   // before the five go, so focus never falls on a stray view
+        findViewById(R.id.genresScroll).setVisibility(View.GONE);
+        findViewById(R.id.cards).setVisibility(View.GONE);
+    }
+
+    /** Fills the cards from the row above the focus to two rows below it, once each. */
+    private void fillRows(int around, int t) {
+        LinearLayout rows = findViewById(R.id.allRows);
+        for (int r = Math.max(0, around - 1); r <= around + 2 && r < rows.getChildCount(); r++) {
+            LinearLayout row = (LinearLayout) rows.getChildAt(r);
+            for (int c = 0; c < row.getChildCount(); c++) {
+                int index = r * GRID_COLUMNS + c;
+                View card = row.getChildAt(c);
+                if (index >= gridIds.size() || card.getTag() != null) continue;
+                card.setTag(Boolean.TRUE);
+                fillCard(card, gridIds.get(index), t, true);
+            }
+        }
+    }
+
+    private void closeAll() {
+        if (!gridOpen) return;
+        gridOpen = false;
+        gridToken++;
+        main.removeCallbacks(gridHead);
+        findViewById(R.id.genresScroll).setVisibility(View.VISIBLE);
+        findViewById(R.id.cards).setVisibility(View.VISIBLE);
+        hint.setVisibility(View.VISIBLE);
+        overview.setMaxLines(3);
+        title.setMaxLines(2);
+        cards.get(PICKS + 1).requestFocus();
+        findViewById(R.id.all).setVisibility(View.GONE);
+        ((LinearLayout) findViewById(R.id.allRows)).removeAllViews();   // the pictures go with the cards
+        if (shownBeforeGrid > 0) showHead(shownBeforeGrid);
+    }
+
+    // ---- head ------------------------------------------------------------------------------------
 
     /** The focused series behind everything, with its logo (or name), badges and plot. */
     private void showHead(long id) {
@@ -330,16 +483,27 @@ public class SerieActivity extends Activity {
         chips.addView(c);
     }
 
-    private void menu(int slot) {
-        if (slot >= picks.size()) return;
-        long id = picks.get(slot);
-        String[] items = {getString(R.string.menu_trailer), getString(R.string.menu_seen), getString(R.string.menu_cancel)};
+    // ---- actions ---------------------------------------------------------------------------------
+
+    /** Holding OK: the trailer, "Già vista" and, on one of the five, "Non oggi" (slot -1: a card of the grid). */
+    private void menu(long id, int slot) {
+        boolean grid = slot < 0;
+        List<String> items = new ArrayList<>();
+        items.add(getString(R.string.menu_trailer));
+        items.add(getString(R.string.menu_seen));
+        if (!grid) items.add(getString(R.string.menu_not_today));
+        items.add(getString(R.string.menu_cancel));
         new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
-                .setTitle(details.containsKey(id) ? details.get(id).optString("name") : "")
-                .setItems(items, (dlg, which) -> {
-                    if (which == 0) trailer(id);
-                    else if (which == 1) {
+                .setTitle(name(id))
+                .setItems(items.toArray(new String[0]), (dlg, which) -> {
+                    if (which == 0) {
+                        trailer(id);
+                    } else if (which == 1 && grid) {
                         Store.markSeen(this, id);
+                        openAll(Math.max(0, gridIds.indexOf(id)));
+                    } else if (which == 1 || (which == 2 && !grid)) {
+                        if (which == 1) Store.markSeen(this, id);
+                        else Store.skipToday(this, id);
                         draw(slot);
                         cards.get(Math.min(slot, Math.max(0, picks.size() - 1))).requestFocus();
                     }
@@ -347,9 +511,8 @@ public class SerieActivity extends Activity {
                 .show();
     }
 
-    private void watch(int slot) {
-        if (slot >= picks.size()) return;
-        JSONObject item = Pool.item(pool, picks.get(slot));
+    private void watch(long id) {
+        JSONObject item = Pool.item(pool, id);
         String svc = Pool.service(item);
         JSONObject services = content == null ? null : content.optJSONObject("services");
         JSONObject s = services == null || svc == null ? null : services.optJSONObject(svc);
@@ -367,8 +530,8 @@ public class SerieActivity extends Activity {
                 // Netflix without the title link: open the app instead
             }
         }
-        JSONObject d = details.get(picks.get(slot));
-        String search = "prime".equals(svc) && d != null ? Shelf.primeSearchIntent(d.optString("name")) : null;
+        String name = name(id);
+        String search = "prime".equals(svc) && !name.isEmpty() ? Shelf.primeSearchIntent(name) : null;
         if (search != null) {
             try {
                 startActivity(Intent.parseUri(search, Intent.URI_INTENT_SCHEME));
@@ -386,19 +549,36 @@ public class SerieActivity extends Activity {
         startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
     }
 
+    /** Off the main thread: a card of the grid may not have its details in memory yet. */
     private void trailer(long id) {
-        JSONObject d = details.get(id);
-        String key = d == null ? null : Tmdb.trailer(d);
-        if (key == null) {
-            Toast.makeText(this, R.string.no_trailer, Toast.LENGTH_SHORT).show();
-            return;
+        io.execute(() -> {
+            JSONObject d = details(id);
+            String key = d == null ? null : Tmdb.trailer(d);
+            main.post(() -> {
+                if (isDestroyed()) return;
+                if (key == null) {
+                    Toast.makeText(this, R.string.no_trailer, Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                try {
+                    startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/watch?v=" + key))
+                            .setPackage("com.google.android.youtube.tv").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                } catch (ActivityNotFoundException e) {
+                    Toast.makeText(this, R.string.no_trailer, Toast.LENGTH_SHORT).show();
+                }
+            });
+        });
+    }
+
+    /** The series' Italian name from its details or its card; "" before either has loaded. */
+    private String name(long id) {
+        JSONObject d;
+        synchronized (details) {
+            d = details.get(id);
         }
-        try {
-            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/watch?v=" + key))
-                    .setPackage("com.google.android.youtube.tv").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-        } catch (ActivityNotFoundException e) {
-            Toast.makeText(this, R.string.no_trailer, Toast.LENGTH_SHORT).show();
-        }
+        if (d != null) return d.optString("name");
+        String n = names.get(id);
+        return n == null ? "" : n;
     }
 
     /** Details from memory, else from Tmdb's week-long cache or the network (off the main thread). */

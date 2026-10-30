@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Fork lorenzoma97: the bar when focus is on the last app row (Down opens the section). -->
-<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-    <corners android:radius="22dp" />
-    <solid android:color="#CC1A1406" />
-    <stroke android:width="2dp" android:color="#FFE5A00D" />
-</shape>

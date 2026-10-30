@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- "Scopri una nuova serie": the Home's lower section. The focused series fills the screen; above the cards its
-     logo, badges and plot; genres, then five picks and "Pesca altre". -->
+     logo, badges and plot; genres, then five picks, "Pesca altre cinque" and "Tutte le serie". -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/root"
     android:layout_width="match_parent"
@@ -107,6 +107,7 @@
         android:clipToPadding="false">
 
         <HorizontalScrollView
+            android:id="@+id/genresScroll"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:scrollbars="none"
@@ -129,6 +130,46 @@
             android:orientation="horizontal"
             android:clipChildren="false"
             android:clipToPadding="false" />
+
+        <!-- "Tutte le serie": the whole genre, six cards a row, two rows in view (SerieActivity.openAll). -->
+        <LinearLayout
+            android:id="@+id/all"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="vertical"
+            android:clipChildren="false"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/allTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textAllCaps="true"
+                android:letterSpacing="0.2"
+                android:textColor="#FFE5A00D"
+                android:textSize="12sp"
+                android:fontFamily="@font/outfit_medium" />
+
+            <ScrollView
+                android:id="@+id/allScroll"
+                android:layout_width="match_parent"
+                android:layout_height="230dp"
+                android:layout_marginTop="2dp"
+                android:paddingTop="5dp"
+                android:paddingBottom="5dp"
+                android:clipToPadding="false"
+                android:scrollbars="none"
+                android:overScrollMode="never">
+
+                <LinearLayout
+                    android:id="@+id/allRows"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:clipChildren="false" />
+            </ScrollView>
+        </LinearLayout>
 
         <TextView
             android:layout_width="wrap_content"

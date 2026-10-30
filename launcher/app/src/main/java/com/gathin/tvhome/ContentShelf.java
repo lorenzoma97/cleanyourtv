@@ -37,10 +37,12 @@ final class ContentShelf {
         /** The redesigned shelf: title logo (null: text), two lines of plot, badges, the resume point and progress. */
         Uri logo;
         String plot, tag, season, resume;
-        /** What the play button says when it is not "Guarda il titolo" (Prime: "Cerca su Prime Video"). */
+        /** What the play button says when it is not "Guarda su <app>" (Prime: "Cerca su Prime Video"). */
         String cta;
         /** "mancano 23 min" on the Riprendi button; the detail's facts, "2024 · Thriller · 2 stagioni · ★ 7,8". */
         String left, meta;
+        /** "Nuovo episodio ven 6 nov" from Casa, when one is due within two weeks. */
+        String next;
         int top;
         float progress = -1f;
         /** Came from Casa: a list without any is cached only briefly (Casa may still be on its first download). */
@@ -195,6 +197,18 @@ final class ContentShelf {
         return "mancano " + min / 60 + " h" + (min % 60 == 0 ? "" : " " + min % 60 + " min");
     }
 
+    /**
+     * The shelf's play button, the same verbs on every app: "Guarda su Netflix" (a link to the title), Casa's own cta
+     * ("Cerca su Prime Video"), "Riprendi · mancano 44 min", and "Apri RaiPlay" when there is no link and OK opens the
+     * app. app: the dock app's name, null when unknown.
+     */
+    static String buttonText(boolean link, String cta, boolean resume, String left, String app) {
+        if (!link) return app == null ? "Apri l'app" : "Apri " + app;
+        if (cta != null) return "▶  " + cta;
+        if (resume) return "▶  " + (left != null ? "Riprendi · " + left : "Riprendi");
+        return "▶  " + (app == null ? "Guarda" : "Guarda su " + app);
+    }
+
     /** "Riprendi · S2E5 · 40%" from whichever parts the app filled in. */
     static String resumeLine(String season, String episode, String episodeTitle, long position, long duration) {
         StringBuilder sb = new StringBuilder("Riprendi");
@@ -223,6 +237,7 @@ final class ContentShelf {
                 item.season = column(c, "season");
                 item.cta = column(c, "cta");
                 item.meta = column(c, "meta");
+                item.next = column(c, "next");
                 int top = c.getColumnIndex("top");
                 item.top = top >= 0 ? c.getInt(top) : 0;
                 item.fromCasa = true;

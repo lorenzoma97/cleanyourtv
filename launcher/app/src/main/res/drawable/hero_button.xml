@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Fork lorenzoma97: the shelf's play button. In the detail (selected): solid white (Apple TV); on Home: faint glass
-     with a hairline. -->
+<!-- Fork lorenzoma97: the shelf's play button. Solid white (Apple TV) only while it really has focus; otherwise, on
+     Home and in the detail alike (focus is on the cards there), glass with a hairline that still reads as a button. -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:state_selected="true">
+    <item android:state_focused="true">
         <shape android:shape="rectangle">
             <corners android:radius="24dp" />
             <solid android:color="#FFFFFFFF" />
@@ -11,8 +11,8 @@
     <item>
         <shape android:shape="rectangle">
             <corners android:radius="24dp" />
-            <solid android:color="#2EFFFFFF" />
-            <stroke android:width="1dp" android:color="#38FFFFFF" />
+            <solid android:color="#29FFFFFF" />
+            <stroke android:width="1dp" android:color="#47FFFFFF" />
         </shape>
     </item>
 </selector>

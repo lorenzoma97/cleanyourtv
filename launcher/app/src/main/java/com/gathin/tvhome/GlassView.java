@@ -28,22 +28,25 @@ public class GlassView extends View {
     private int glowAlpha = 0x30;
     /**
      * Fork lorenzoma97, "liquid glass" (Apple tvOS / 2025 look): no coloured glow and no white slab. A soft dark
-     * shadow lifts the tile, a barely-there sheen catches the light at the top left, and a hairline rim fades from
-     * the top edge to the bottom. Delicate on purpose: the tile's own art stays the focus.
+     * shadow lifts the tile, a barely-there sheen catches the light at the top left, and a white ring marks the focus
+     * (a fading hairline until 30 Oct 2026: too faint on the Metz). The tile's own art stays the focus.
      */
     private boolean liquid;
     private final Paint liquidFill = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint liquidSheen = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint liquidRim = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint shadow = new Paint(Paint.ANTI_ALIAS_FLAG);
+    /** Fork lorenzoma97: the focus ring's width, plain and liquid glass alike. */
+    private static final float RING_DP = 2.5f;
 
     public GlassView(Context context, AttributeSet attrs) {
         super(context, attrs);
         density = getResources().getDisplayMetrics().density;
         radius = 20f * density;
         rim.setStyle(Paint.Style.STROKE);
-        rim.setStrokeWidth(1.5f * density);
-        rim.setColor(0xCCFFFFFF);
+        // Fork lorenzoma97: 2.5 dp full white; 1.5 dp at 80% was 2 px on the 720p UI and lost over bright banners.
+        rim.setStrokeWidth(RING_DP * density);
+        rim.setColor(0xFFFFFFFF);
         glow.setStyle(Paint.Style.STROKE);
         // Cache the slab as a texture. The spring only changes translation, so the GPU can
         // move it without replaying clipPath and the glow on every frame. That path is
@@ -54,7 +57,9 @@ public class GlassView extends View {
     void setLiquid(boolean on) {
         liquid = on;
         liquidRim.setStyle(Paint.Style.STROKE);
-        liquidRim.setStrokeWidth(Math.max(1.5f, 1.4f * density));
+        // The ring the Metz shows (cinematic Home): solid white too, the fading hairline was hard to find from the sofa.
+        liquidRim.setStrokeWidth(RING_DP * density);
+        liquidRim.setColor(0xFFFFFFFF);
         shadow.setStyle(Paint.Style.STROKE);
         updateLiquidShaders(getWidth(), getHeight());
         invalidate();
@@ -64,7 +69,6 @@ public class GlassView extends View {
         if (!liquid || w == 0 || h == 0) return;
         liquidFill.setShader(new LinearGradient(0, 0, 0, h, 0x24FFFFFF, 0x08FFFFFF, Shader.TileMode.CLAMP));
         liquidSheen.setShader(new LinearGradient(0, 0, w * 0.55f, h * 0.6f, 0x47FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP));
-        liquidRim.setShader(new LinearGradient(0, 0, 0, h, 0xE0FFFFFF, 0x47FFFFFF, Shader.TileMode.CLAMP));
     }
 
     /** Tints the rim and the outer glow; 0 restores the plain white glass. */
@@ -72,7 +76,7 @@ public class GlassView extends View {
         if (argb == 0) {
             glowRgb = 0xFFFFFF;
             glowAlpha = 0x30;
-            rim.setColor(0xCCFFFFFF);
+            rim.setColor(0xFFFFFFFF);
         } else {
             glowRgb = argb & 0xFFFFFF;
             glowAlpha = 0x70;

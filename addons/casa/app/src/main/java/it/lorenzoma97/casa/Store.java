@@ -83,7 +83,35 @@ final class Store {
         prefs(ctx).edit().putStringSet(SEEN, s).apply();
     }
 
-    /** Tonight's five ("Tutte"): the same in Home's bar and in the section, for the day or until "Pesca altre". */
+    /** "Non oggi": titles not to propose again today; tomorrow they are back in the draw. */
+    static Set<Long> notToday(Context ctx) {
+        SharedPreferences p = prefs(ctx);
+        Set<Long> out = new HashSet<>();
+        if (!java.time.LocalDate.now().toString().equals(p.getString("not_today_day", ""))) return out;
+        for (String s : p.getStringSet("not_today", Collections.emptySet())) {
+            try {
+                out.add(Long.parseLong(s));
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return out;
+    }
+
+    static void skipToday(Context ctx, long tmdbId) {
+        Set<String> s = new HashSet<>();
+        for (Long id : notToday(ctx)) s.add(Long.toString(id));
+        s.add(Long.toString(tmdbId));
+        prefs(ctx).edit().putStringSet("not_today", s).putString("not_today_day", java.time.LocalDate.now().toString()).apply();
+    }
+
+    /** What the draws leave out: the titles already watched, and today the ones put off with "Non oggi". */
+    static Set<Long> hidden(Context ctx) {
+        Set<Long> out = seen(ctx);
+        out.addAll(notToday(ctx));
+        return out;
+    }
+
+    /** Tonight's five ("Tutte"): the same in Home's bar and in the section, for the day or until "Pesca altre cinque". */
     static java.util.List<Long> tonight(Context ctx) {
         SharedPreferences p = prefs(ctx);
         java.util.List<Long> out = new java.util.ArrayList<>();

@@ -458,20 +458,18 @@
                             android:textSize="14sp"
                             android:fontFamily="@font/outfit_regular" />
 
+                        <!-- Only from "moderata" up: a coloured dot and the words, no index (MainActivity.updateWeather). -->
                         <TextView
                             android:id="@+id/wxAir"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="5dp"
-                            android:paddingStart="7dp"
-                            android:paddingEnd="7dp"
-                            android:paddingTop="2dp"
-                            android:paddingBottom="2dp"
+                            android:layout_marginTop="4dp"
                             android:includeFontPadding="false"
-                            android:textAllCaps="true"
-                            android:letterSpacing="0.08"
-                            android:textSize="10sp"
-                            android:fontFamily="@font/outfit_medium"
+                            android:singleLine="true"
+                            android:textColor="#D9FFFFFF"
+                            android:textSize="12sp"
+                            android:fontFamily="@font/outfit_regular"
+                            android:drawablePadding="5dp"
                             android:visibility="gone" />
                     </LinearLayout>
                 </LinearLayout>
@@ -548,8 +546,9 @@
         android:alpha="0"
         android:importantForAccessibility="no" />
 
-    <!-- Fork lorenzoma97: Home's lower section (Casa add-on) announced at the bottom: tonight's five as titled cards,
-         inside the TV's safe margin; it lights up on the last app row, where Down opens the section. -->
+    <!-- Fork lorenzoma97: Home's lower section (Casa add-on) announced at the bottom: tonight's five as titled cards.
+         Always at rest (the dock is the only app row, so a "lit" state told nothing); as wide as the app panel's band
+         (MainActivity.fitDiscoverBar), centred until the band is first drawn. -->
     <LinearLayout
         android:id="@+id/discoverBar"
         android:layout_width="wrap_content"
@@ -588,9 +587,11 @@
 
         <LinearLayout
             android:id="@+id/discoverThumbs"
-            android:layout_width="wrap_content"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_weight="1"
             android:layout_marginStart="14dp"
+            android:gravity="center"
             android:orientation="horizontal" />
 
         <TextView

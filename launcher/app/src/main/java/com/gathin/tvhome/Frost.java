@@ -208,7 +208,7 @@ final class Frost {
             frost.addHost(host);
         }
 
-        /** New tint and edge (the Scopri bar lights up on the last app row). */
+        /** New tint and edge. */
         void style(int tint, int edge, float edgeDp) {
             this.tint.setColor(tint);
             this.edge.setColor(edge);

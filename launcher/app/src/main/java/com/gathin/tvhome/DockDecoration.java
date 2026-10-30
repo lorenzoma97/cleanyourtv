@@ -31,6 +31,14 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
     /** Fork lorenzoma97: the blurred picture under the band on the cinematic shelf (Frost); null for none. */
     private Frost frost;
 
+    /** Fork lorenzoma97: told the band's left and right (grid coordinates) when they change, for the Scopri bar. */
+    interface EdgesListener {
+        void onEdges(float left, float right);
+    }
+
+    private EdgesListener edgesListener;
+    private float lastLeft = Float.NaN, lastRight = Float.NaN;
+
     /**
      * @param translucent the cinematic shelf's band: the artwork and the glow show through it.
      * @param names       the dock tiles show their names, so the band reaches down over them.
@@ -56,6 +64,10 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
 
     void setFrost(Frost frost) {
         this.frost = frost;
+    }
+
+    void setEdgesListener(EdgesListener listener) {
+        this.edgesListener = listener;
     }
 
     @Override
@@ -101,6 +113,11 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
         float side = Math.max(0f, Math.min(sidePad, Math.min(rect.left, parent.getWidth() - rect.right) - density));
         rect.inset(-side, -pad);
         rect.bottom += namesRoom;
+        if (edgesListener != null && (rect.left != lastLeft || rect.right != lastRight)) {
+            lastLeft = rect.left;
+            lastRight = rect.right;
+            edgesListener.onEdges(rect.left, rect.right);
+        }
         float radius = 26 * density;
         if (lightGlass && (rect.top != shaderTop || rect.bottom != shaderBottom)) {
             // The pills' glass (pill_bg: white, 18% fading to 8%), a little fainter over this much larger area.

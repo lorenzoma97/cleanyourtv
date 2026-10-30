@@ -10,7 +10,7 @@ import java.util.Random;
 import java.util.Set;
 
 /**
- * The "Serie a caso" pool from content.json (rules in tv-casa-data/content.py): "all" = the best 100, by_genre = the
+ * The "Scopri una nuova serie" pool from content.json (rules in tv-casa-data/content.py): "all" = the best 100, by_genre = the
  * best up to 100 of each genre. Already watched titles never come back; skipped ones only once everything else has
  * been shown.
  */

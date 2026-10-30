@@ -9,6 +9,8 @@ import org.json.JSONObject;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -22,6 +24,7 @@ import java.util.regex.Pattern;
  * The launcher's top shelf per app: which titles, in which order, with which line of text. Built from content.json
  * (tv-casa-data) plus TMDB details, written to shelf.json and served by {@link HeroProvider}.
  *   Netflix: Top 10 Italia (one per series) then Novita.  Prime, RaiPlay, Infinity: Novita.
+ * The dates (a new season's start, the next episode) are worked out at each refresh, from TMDB's cached reply.
  * "Riprendi" (Watch Next) is not here: the launcher reads it from the TV itself.
  */
 final class Shelf {
@@ -34,17 +37,20 @@ final class Shelf {
         final long tmdb;
         final String line;
         final String netflixId;
-        /** Badges for the shelf: Top 10 rank (0 = none), "Nuova stagione 4" / "Nuova serie", "Miniserie" / "Stagione 2". */
+        /** Badges for the shelf: Top 10 rank (0 = none), "Nuova stagione 4" / "Novità", "Miniserie" / "Stagione 2". */
         final int top;
         final String tag, season;
+        /** The season a "Nuova stagione N" tag is about (its start date goes on the tag); 0 for anything else. */
+        final int newSeason;
 
-        Entry(long tmdb, String line, String netflixId, int top, String tag, String season) {
+        Entry(long tmdb, String line, String netflixId, int top, String tag, String season, int newSeason) {
             this.tmdb = tmdb;
             this.line = line;
             this.netflixId = netflixId;
             this.top = top;
             this.tag = tag;
             this.season = season;
+            this.newSeason = newSeason;
         }
     }
 
@@ -70,8 +76,51 @@ final class Shelf {
         return "Top 10 in Italia · n. " + rank + (s == null ? "" : " · " + s);
     }
 
+    /** "Novità" = a series that came out in the last 30 days (content.py's new_series); else its new season. */
     static String novitaLine(String kind, int season) {
-        return "new_series".equals(kind) ? "Nuova serie" : "Nuova stagione " + season;
+        return "new_series".equals(kind) ? "Novità" : "Nuova stagione " + season;
+    }
+
+    static final int NEXT_DAYS = 14;
+    private static final String[] MONTHS = {"gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio",
+            "agosto", "settembre", "ottobre", "novembre", "dicembre"};
+    private static final String[] MONTHS_SHORT = {"gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott",
+            "nov", "dic"};
+    private static final String[] DAYS_SHORT = {"lun", "mar", "mer", "gio", "ven", "sab", "dom"};
+
+    /** "Nuova stagione 3 · dal 9 ottobre" from TMDB's air date of that season (the year only when it is not this one). */
+    static String seasonTag(String tag, JSONObject d, int newSeason, LocalDate today) {
+        if (tag == null || newSeason <= 0) return tag;
+        JSONArray seasons = d == null ? null : d.optJSONArray("seasons");
+        for (int i = 0; seasons != null && i < seasons.length(); i++) {
+            JSONObject s = seasons.optJSONObject(i);
+            if (s == null || s.optInt("season_number", -1) != newSeason) continue;
+            LocalDate start = date(s.isNull("air_date") ? null : s.optString("air_date", null));
+            if (start == null) return tag;
+            int day = start.getDayOfMonth();
+            return tag + " · dal " + (day == 1 ? "1°" : Integer.toString(day)) + " " + MONTHS[start.getMonthValue() - 1]
+                    + (start.getYear() == today.getYear() ? "" : " " + start.getYear());
+        }
+        return tag;
+    }
+
+    /** "Nuovo episodio ven 6 nov" when TMDB's next_episode_to_air is due within NEXT_DAYS; null otherwise. */
+    static String nextEpisode(JSONObject d, LocalDate today) {
+        JSONObject next = d == null ? null : d.optJSONObject("next_episode_to_air");
+        LocalDate day = next == null ? null : date(next.isNull("air_date") ? null : next.optString("air_date", null));
+        if (day == null || day.isBefore(today) || day.isAfter(today.plusDays(NEXT_DAYS))) return null;
+        return "Nuovo episodio " + DAYS_SHORT[day.getDayOfWeek().getValue() - 1] + " " + day.getDayOfMonth() + " "
+                + MONTHS_SHORT[day.getMonthValue() - 1];
+    }
+
+    /** TMDB's "2026-10-09"; null for anything else (missing, JSON null read as "null" on Android). */
+    private static LocalDate date(String iso) {
+        if (iso == null || !iso.matches("\\d{4}-\\d{2}-\\d{2}")) return null;
+        try {
+            return LocalDate.parse(iso);
+        } catch (DateTimeParseException e) {
+            return null;
+        }
     }
 
     /**
@@ -126,7 +175,7 @@ final class Shelf {
                     if (id <= 0 || !seen.add(id)) continue;   // Maschi veri S1 and S2 both in the chart: once
                     String season = opt(x, "season");
                     list.add(new Entry(id, topLine(x.optInt("rank"), season), opt(x, "netflix_id"),
-                            x.optInt("rank"), null, seasonLabel(season)));
+                            x.optInt("rank"), null, seasonLabel(season), 0));
                 }
             }
             JSONArray news = novita == null ? null : novita.optJSONArray(svc);
@@ -135,8 +184,9 @@ final class Shelf {
                 JSONObject x = news.optJSONObject(i);
                 long id = x == null ? 0 : x.optLong("tmdb", 0);
                 if (id <= 0 || !seen.add(id)) continue;
+                boolean series = "new_series".equals(x.optString("kind"));
                 String line = novitaLine(x.optString("kind"), x.optInt("season", 1));
-                list.add(new Entry(id, line, opt(x, "nf"), 0, line, null));
+                list.add(new Entry(id, line, opt(x, "nf"), 0, line, null, series ? 0 : x.optInt("season", 1)));
             }
             if (!list.isEmpty()) out.put(pkg, list);
         }
@@ -175,12 +225,17 @@ final class Shelf {
         if (content == null) return;
         JSONObject shelf = new JSONObject();
         int images = 0;
+        LocalDate today = LocalDate.now();
         for (Map.Entry<String, List<Entry>> e : plan(content).entrySet()) {
             JSONArray items = new JSONArray();
             for (Entry en : e.getValue()) {
                 try {
                     JSONObject d = Tmdb.details(ctx, en.tmdb);
                     if (d == null) continue;
+                    String overview = d.isNull("overview") ? "" : d.optString("overview", "").trim();
+                    // A new title with no Italian plot is a foreign local production nobody here asked for (4 of
+                    // Prime's 12 on 30 Oct 2026); the Top 10 stays as Netflix ranks it.
+                    if (en.top == 0 && overview.isEmpty()) continue;
                     String path = Tmdb.backdrop(d);
                     if (path == null) continue;   // the shelf is made of pictures: no picture, no item
                     File img = Tmdb.image(ctx, "img", path, "w1280");
@@ -190,11 +245,14 @@ final class Shelf {
                             .put("title", d.optString("name"))
                             .put("line", en.line)
                             .put("image", img.getName())
-                            .put("plot", Tmdb.shortPlot(d.optString("overview"), 170))
+                            .put("plot", Tmdb.shortPlot(overview, 170))
                             .put("top", en.top);
-                    if (en.tag != null) item.put("tag", en.tag);
+                    if (en.tag != null) item.put("tag", seasonTag(en.tag, d, en.newSeason, today));
                     if (en.season != null) item.put("season", en.season);
-                    item.put("meta", Tmdb.meta(d));
+                    String next = nextEpisode(d, today);
+                    if (next != null) item.put("next", next);
+                    // The badge already says which season: the facts drop the year and the season count.
+                    item.put("meta", Tmdb.meta(d, en.tag != null || en.season != null));
                     String logo = Tmdb.logo(d);
                     if (logo != null) {
                         try {

@@ -16,11 +16,13 @@ final class Weather {
     static final String CITY = "Bologna";
     static final double LAT = 44.4949, LON = 11.3426;
     static final long TTL = 30L * 60 * 1000;
+    /** Older than this (no network for hours) the reading is not "now" any more: the launcher hides the box. */
+    static final long STALE = 3L * 3600 * 1000;
     private static final String TAG = "Casa";
 
     private Weather() { }
 
-    /** The cached reading, refreshed first when older than TTL; null when there has never been one. */
+    /** The cached reading, refreshed first when older than TTL; null when there is none younger than STALE. */
     static JSONObject now(Context ctx) {
         File f = Store.file(ctx, "weather.json");
         if (!Store.fresh(f, TTL)) {
@@ -47,6 +49,7 @@ final class Weather {
                 Log.w(TAG, "weather: " + e);
             }
         }
+        if (!Store.fresh(f, STALE)) return null;
         String text = Store.read(f);
         try {
             return text == null ? null : new JSONObject(text);
