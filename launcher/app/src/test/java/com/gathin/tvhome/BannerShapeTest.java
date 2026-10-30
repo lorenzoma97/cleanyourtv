@@ -1,5 +1,6 @@
 package com.gathin.tvhome;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -23,5 +24,12 @@ public class BannerShapeTest {
     public void drawablesWithoutAnIntrinsicSizeStillFillTheTile() {
         assertTrue(AppAdapter.isBannerShaped(-1, -1));
         assertTrue(AppAdapter.isBannerShaped(0, 0));
+    }
+
+    @Test
+    public void sharpBannersCoverTheTileLikeCenterCrop() {
+        assertArrayEquals(new int[] {118, 66}, AppAdapter.coverSize(320, 180, 118, 66));   // 16:9 into 16:9
+        assertArrayEquals(new int[] {132, 66}, AppAdapter.coverSize(320, 160, 118, 66));   // wider: crop the sides
+        assertArrayEquals(new int[] {118, 74}, AppAdapter.coverSize(320, 200, 118, 66));   // taller: crop top and bottom
     }
 }

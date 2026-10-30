@@ -14,6 +14,7 @@ import android.graphics.Color;
 import android.graphics.Outline;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
+import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.provider.Settings;
@@ -78,6 +79,9 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         final String name;
         /** Ambient glow colour; 0 until sampled from the banner, or the card's accent from the start. */
         int ambient;
+        /** Fork lorenzoma97: the banner at the tile's own pixels (sharpBanner), made on the first bind at that width. */
+        Drawable sharp;
+        int sharpW;
 
         Entry(String label, ComponentName component, Drawable banner, Drawable icon) {
             this(APP, label, component, banner, icon, null, 0);
@@ -370,6 +374,41 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         return width <= 0 || height <= 0 || width >= height * 1.4f;
     }
 
+    /** Fork lorenzoma97: the size a picture of iw x ih takes when it covers w x h (centerCrop), for sharpBanner. */
+    static int[] coverSize(int iw, int ih, int w, int h) {
+        float s = Math.max(w / (float) iw, h / (float) ih);
+        return new int[] {Math.max(w, Math.round(iw * s)), Math.max(h, Math.round(ih * s))};
+    }
+
+    /**
+     * Fork lorenzoma97: the banner shrunk once on the CPU to the tile's pixels at the focus zoom, by halves (each one
+     * a 2x2 average), then drawn 1:1. Drawn as it came, a 320 px banner went into a tile of about 120 px in one
+     * bilinear pass that skips texels, and the logos came out jagged (the Metz draws its UI at 1280x720).
+     */
+    private Drawable sharpBanner(Entry e, int w, int h) {
+        Drawable d = e.banner;
+        int iw = d.getIntrinsicWidth(), ih = d.getIntrinsicHeight();
+        if (iw <= 0 || ih <= 0 || w <= 0 || h <= 0) return d;   // a colour or a shape: nothing to shrink
+        float zoom = focusScale() * (advancedEffects ? 1.035f : 1f);
+        int[] size = coverSize(iw, ih, Math.round(w * zoom), Math.round(h * zoom));
+        if (size[0] >= iw) return d;   // no bigger than the tile already
+        if (e.sharp != null && e.sharpW == size[0]) return e.sharp;
+        Bitmap cur = Bitmap.createBitmap(iw, ih, Bitmap.Config.ARGB_8888);
+        d.setBounds(0, 0, iw, ih);
+        d.draw(new Canvas(cur));
+        while (cur.getWidth() / 2 >= size[0] && cur.getHeight() / 2 >= size[1]) {
+            Bitmap half = Bitmap.createScaledBitmap(cur, cur.getWidth() / 2, cur.getHeight() / 2, true);
+            cur.recycle();
+            cur = half;
+        }
+        Bitmap out = Bitmap.createScaledBitmap(cur, size[0], size[1], true);
+        if (out != cur) cur.recycle();
+        out.setDensity(ctx.getResources().getDisplayMetrics().densityDpi);
+        e.sharp = new BitmapDrawable(ctx.getResources(), out);
+        e.sharpW = size[0];
+        return e.sharp;
+    }
+
     /** Lets go of every tile and its artwork (Home is in the background and memory is short). */
     void clear() {
         items.clear();
@@ -453,7 +492,8 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         // nothing on every frame; keep it under banners with transparent parts and under icon tiles.
         h.card.setBackground(e.banner != null && e.banner.getOpacity() == PixelFormat.OPAQUE ? null : h.cardBackground);
         if (e.banner != null) {
-            h.banner.setImageDrawable(e.banner);
+            ViewGroup.LayoutParams tile = h.card.getLayoutParams();
+            h.banner.setImageDrawable(sharpBanner(e, tile.width, tile.height));
             h.banner.setVisibility(View.VISIBLE);
             h.icon.setVisibility(View.GONE);
             h.label.setVisibility(View.GONE);

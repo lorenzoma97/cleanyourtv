@@ -254,19 +254,17 @@
             android:clipChildren="false"
             android:clipToPadding="false">
 
-            <!-- Fork lorenzoma97: the clock on a dark glass panel sized to its content, Apple style. -->
+            <!-- Fork lorenzoma97: the clock on a dark glass panel sized to its content and as tall as the weather's
+                 (header_panel_height), no greeting: two matching boxes. No toStartOf, which stretched it to the buttons. -->
             <LinearLayout
                 android:id="@+id/leftBlock"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_height="@dimen/header_panel_height"
                 android:layout_alignParentStart="true"
-                android:layout_toStartOf="@+id/topButtons"
-                android:layout_marginEnd="16dp"
                 android:background="@drawable/header_glass"
-                android:paddingStart="18dp"
-                android:paddingEnd="20dp"
-                android:paddingTop="8dp"
-                android:paddingBottom="2dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="18dp"
+                android:gravity="center_vertical"
                 android:orientation="vertical">
 
                 <!-- The header texts use gravity left, not start: the launcher lays out left to right
@@ -280,6 +278,7 @@
                     android:singleLine="true"
                     android:ellipsize="end"
                     android:layout_marginStart="4dp"
+                    android:visibility="gone"
                     android:textColor="#8CFFFFFF"
                     android:textSize="11sp"
                     android:fontFamily="@font/outfit_medium"
@@ -299,7 +298,7 @@
                         android:format12Hour="h:mm"
                         android:format24Hour="HH:mm"
                         android:textColor="#FFFFFFFF"
-                        android:textSize="42sp"
+                        android:textSize="34sp"
                         android:fontFamily="@font/outfit_light"
                         android:letterSpacing="-0.04"
                         android:includeFontPadding="false" />
@@ -320,19 +319,17 @@
                         android:textAllCaps="true" />
 
                     <View
-                        android:layout_width="1dp"
-                        android:layout_height="22dp"
-                        android:layout_gravity="bottom"
-                        android:layout_marginStart="14dp"
-                        android:layout_marginEnd="14dp"
-                        android:layout_marginBottom="7dp"
-                        android:background="#33FFFFFF" />
+                        android:layout_width="1px"
+                        android:layout_height="20dp"
+                        android:layout_gravity="center_vertical"
+                        android:layout_marginStart="12dp"
+                        android:layout_marginEnd="12dp"
+                        android:background="#40FFFFFF" />
 
                     <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_gravity="bottom"
-                        android:layout_marginBottom="7dp"
+                        android:layout_gravity="center_vertical"
                         android:orientation="vertical">
 
                         <!-- Shamsi date ("27 Mehr 1405"), shown when shamsi_date is on. -->
@@ -361,9 +358,9 @@
                             android:ellipsize="end"
                             android:format12Hour="@string/date_format_home"
                             android:format24Hour="@string/date_format_home"
-                            android:textColor="#A6FFFFFF"
-                            android:textSize="12sp"
-                            android:fontFamily="@font/outfit_regular"
+                            android:textColor="#D9FFFFFF"
+                            android:textSize="13sp"
+                            android:fontFamily="@font/outfit_medium"
                             android:letterSpacing="0.14"
                             android:textAllCaps="true" />
                     </LinearLayout>
@@ -395,24 +392,24 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_alignParentEnd="true"
+                android:layout_alignTop="@id/leftBlock"
                 android:layout_alignBottom="@id/leftBlock"
-                android:layout_marginBottom="6dp"
+                android:gravity="center_vertical"
                 android:clipChildren="false"
                 android:clipToPadding="false"
                 android:orientation="horizontal">
 
-                <!-- Fork lorenzoma97: Bologna now, from the Casa add-on (Open-Meteo); in place of the Wi-Fi pill. -->
+                <!-- Fork lorenzoma97: Bologna now, from the Casa add-on (Open-Meteo); in place of the Wi-Fi pill. As tall as the
+                     clock's box; no 9 sp city line (12 px on the 720p UI): conditions, max/min and the air only. -->
                 <LinearLayout
                     android:id="@+id/weather"
                     android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
+                    android:layout_height="@dimen/header_panel_height"
                     android:layout_gravity="center_vertical"
                     android:layout_marginEnd="10dp"
                     android:background="@drawable/header_glass"
-                    android:paddingStart="12dp"
-                    android:paddingEnd="16dp"
-                    android:paddingTop="7dp"
-                    android:paddingBottom="7dp"
+                    android:paddingStart="14dp"
+                    android:paddingEnd="18dp"
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
                     android:focusable="false"
@@ -420,8 +417,8 @@
 
                     <ImageView
                         android:id="@+id/wxIcon"
-                        android:layout_width="30dp"
-                        android:layout_height="30dp"
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
                         android:importantForAccessibility="no" />
 
                     <TextView
@@ -432,7 +429,7 @@
                         android:includeFontPadding="false"
                         android:textColor="#FFFFFFFF"
                         android:textSize="30sp"
-                        android:fontFamily="@font/outfit_extralight" />
+                        android:fontFamily="@font/outfit_light" />
 
                     <LinearLayout
                         android:layout_width="wrap_content"
@@ -444,6 +441,7 @@
                             android:id="@+id/wxCity"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
+                            android:visibility="gone"
                             android:textAllCaps="true"
                             android:letterSpacing="0.16"
                             android:textColor="#99FFFFFF"
@@ -454,24 +452,25 @@
                             android:id="@+id/wxDesc"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="1dp"
                             android:singleLine="true"
-                            android:textColor="#D9FFFFFF"
-                            android:textSize="12sp"
-                            android:fontFamily="@font/outfit_light" />
+                            android:includeFontPadding="false"
+                            android:textColor="#F2FFFFFF"
+                            android:textSize="14sp"
+                            android:fontFamily="@font/outfit_regular" />
 
                         <TextView
                             android:id="@+id/wxAir"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="3dp"
-                            android:paddingStart="6dp"
-                            android:paddingEnd="6dp"
-                            android:paddingTop="1dp"
-                            android:paddingBottom="1dp"
+                            android:layout_marginTop="5dp"
+                            android:paddingStart="7dp"
+                            android:paddingEnd="7dp"
+                            android:paddingTop="2dp"
+                            android:paddingBottom="2dp"
+                            android:includeFontPadding="false"
                             android:textAllCaps="true"
                             android:letterSpacing="0.08"
-                            android:textSize="8.5sp"
+                            android:textSize="10sp"
                             android:fontFamily="@font/outfit_medium"
                             android:visibility="gone" />
                     </LinearLayout>

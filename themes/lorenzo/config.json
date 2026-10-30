@@ -10,7 +10,7 @@
     "it.mediaset.infinitytv"
   ],
   "hidden_apps": ["org.liskovsoft.androidtv.rukeyboard", "com.android.tv.settings", "it.lorenzoma97.casa",
-                  "com.mediatek.wwtv.mediaplayer", "com.nordvpn.android", "com.android.vending"],
+                  "com.tianci.localmedia", "com.nordvpn.android", "com.android.vending"],
   "library_tile": true,
   "columns": 9,
   "rows_below_dock": 0,

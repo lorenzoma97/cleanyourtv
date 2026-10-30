@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Fork lorenzoma97: the clock and the weather boxes share one height. -->
+    <dimen name="header_panel_height">54dp</dimen>
+
     <!-- Fork lorenzoma97: "Guarda il titolo" / "Apri Netflix" in the shelf's detail mode. -->
     <style name="HeroButton">
         <item name="android:layout_width">wrap_content</item>
