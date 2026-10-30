@@ -1597,6 +1597,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         scrim.setVisibility(View.VISIBLE);
         // Fork: the clock, the weather and the Scopri bar on frosted glass (the app panel's band: DockDecoration).
         View clock = findViewById(R.id.leftBlock), weather = findViewById(R.id.weather), bar = findViewById(R.id.discoverBar);
+        frost.glowFrom(ambient);
         // Darker than the dock's band: the two boxes carry small text, and a pale tint read as washed out.
         if (clock != null) clock.setBackground(new Frost.Panel(frost, clock, 16, 0x850E0F14, 0x26FFFFFF, 1));
         if (weather != null) weather.setBackground(new Frost.Panel(frost, weather, 16, 0x850E0F14, 0x26FFFFFF, 1));
@@ -2448,6 +2449,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         // The default tint mode, SRC_IN, keeps the mask's alpha and takes the colour from the tint.
         glow.setTint(0xFF000000 | color);
+        frost.glowColor(color);
     }
 
     private void transitionAmbient(int color) {

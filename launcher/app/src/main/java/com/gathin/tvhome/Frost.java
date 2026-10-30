@@ -8,9 +8,12 @@ import android.graphics.ColorFilter;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.PixelFormat;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffColorFilter;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Shader;
+import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.view.View;
 
@@ -34,6 +37,39 @@ final class Frost {
     private BitmapShader now, before;
     private float mix = 1f;
     private ValueAnimator fade;
+    private final Paint glowPaint = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG);
+    private final Matrix glowMatrix = new Matrix();
+    private View glowView;
+    private Bitmap glowBitmap;
+    private BitmapShader glowShader;
+    private int glowColor;
+    private float glowAlpha;
+
+    /**
+     * The ambient glow (cinematic: the app's colour floods the top corner over the art) belongs in the glass too:
+     * without it the weather box stayed the art's own blue over a sky that Netflix's red had turned pink. Its fades
+     * redraw the panels.
+     */
+    void glowFrom(View ambient) {
+        if (glowView == ambient) return;
+        glowView = ambient;
+        ambient.getViewTreeObserver().addOnPreDrawListener(() -> {
+            float a = ambient.getVisibility() == View.VISIBLE ? ambient.getAlpha() : 0f;
+            if (a != glowAlpha) {
+                glowAlpha = a;
+                redraw();
+            }
+            return true;
+        });
+    }
+
+    /** The glow's colour now (MainActivity.setAmbient tints the same white mask with it). */
+    void glowColor(int color) {
+        if (color == glowColor) return;
+        glowColor = color;
+        glowPaint.setColorFilter(new PorterDuffColorFilter(0xFF000000 | color, PorterDuff.Mode.SRC_IN));
+        redraw();
+    }
 
     /** A view that paints frost (its background, or the app panel's band): redrawn when the picture changes. */
     void addHost(View v) {
@@ -133,6 +169,18 @@ final class Frost {
         matrix.postTranslate(-at[0], -at[1]);
         if (before != null) paintWith(canvas, before, r, radius, 255);
         paintWith(canvas, now, r, radius, Math.round(255 * mix));
+        if (glowView == null || glowAlpha <= 0f || !(glowView.getBackground() instanceof BitmapDrawable)) return;
+        Bitmap g = ((BitmapDrawable) glowView.getBackground()).getBitmap();
+        if (g != glowBitmap) {
+            glowBitmap = g;
+            glowShader = new BitmapShader(g, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+        }
+        glowMatrix.setScale(root.getWidth() / (float) g.getWidth(), root.getHeight() / (float) g.getHeight());
+        glowMatrix.postTranslate(-at[0], -at[1]);
+        glowShader.setLocalMatrix(glowMatrix);
+        glowPaint.setShader(glowShader);
+        glowPaint.setAlpha(Math.round(255 * glowAlpha));
+        canvas.drawRoundRect(r, radius, radius, glowPaint);
     }
 
     private void paintWith(Canvas canvas, BitmapShader shader, RectF r, float radius, int alpha) {

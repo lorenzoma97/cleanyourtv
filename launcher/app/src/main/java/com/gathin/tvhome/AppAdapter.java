@@ -441,6 +441,18 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         cardLp.width = w;
         cardLp.height = h;
         card.setLayoutParams(cardLp);
+        // Fork lorenzoma97: an icon tile (Altro) scales with the tile; at nine columns (80dp) the 48dp icon ran into
+        // its name. The design size keeps the original look.
+        if (w < Math.round(DESIGN_W_DP * density)) {
+            View icon = v.findViewById(R.id.icon);
+            ViewGroup.MarginLayoutParams iconLp = (ViewGroup.MarginLayoutParams) icon.getLayoutParams();
+            iconLp.width = iconLp.height = Math.round(h * 0.40f);
+            iconLp.bottomMargin = Math.round(h * 0.22f);
+            icon.setLayoutParams(iconLp);
+            TextView label = v.findViewById(R.id.label);
+            label.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, Math.max(10f, 13f * w / (DESIGN_W_DP * density)));
+            label.setPadding(label.getPaddingLeft(), 0, label.getPaddingRight(), Math.round(h * 0.08f));
+        }
         View name = v.findViewById(R.id.name);
         ViewGroup.MarginLayoutParams nameLp = (ViewGroup.MarginLayoutParams) name.getLayoutParams();
         nameLp.width = w;
