@@ -1,6 +1,7 @@
 """Dock tiles for both TVs in one "tech" style: near-black glass, the brand's light rising from the bottom-right
 corner, the brand's symbol as a neon outline, a lit bottom edge and the official logo (Wikimedia Commons SVGs) in its
-own colours. Netflix, YouTube and RaiPlay keep their light in the corner and their symbol clear of the letters.
+own colours. Netflix, YouTube and RaiPlay keep their light in the corner and their symbol clear of the letters. Logo
+sizes are balanced so each covers about 11-15% of the tile (discovery+ and Disney+ were a third of RaiPlay and HBO).
 
     python tools/make_banners.py tools/logos launcher/app/src/main/res/font/outfit.ttf \\
         --android launcher/app/src/main/res/drawable --web <LG fork>/launcher/casa-tiles.js [--preview <dir>]
@@ -130,7 +131,7 @@ tile("youtube", fit([(p, "#FF0033" if k == 0 else "#FFFFFF", "nonZero") for k, (
 
 dz = [p for p, c, _ in shapes("dazn") if c == "#fafafa"]
 frame = [q for q in (Path(x) for p in dz for x in p.as_subpaths()) if q.bbox()[2] - q.bbox()[0] > 200]
-tile("dazn", fit([(p, "#FAFAFA", "nonZero") for p in dz], 64, 64), ("#F4FF2E", "#F4FF2E"),
+tile("dazn", fit([(p, "#FAFAFA", "nonZero") for p in dz], 58, 58), ("#F4FF2E", "#F4FF2E"),
      place([one(frame)], 190, center(frame), (136, 60)))
 
 nw = shapes("now")
@@ -141,7 +142,7 @@ tile("now", fit([(p, "#FFFFFF", "nonZero") for p, _, _ in nw], 100, 34), ("#22E0
 rai = {i: p for p, _, i in shapes("raiplay")}
 sq = list(rai["rect36"].as_subpaths())
 tile("raiplay", fit([(Path(sq[0]), "#1268F0", "nonZero"), (Path("".join(Path(s).d() for s in sq[1:])), "#FFFFFF", "evenOdd"),
-                     (rai["path42"], "#19D3F0", "evenOdd")], 112, 46),
+                     (rai["path42"], "#19D3F0", "evenOdd")], 96, 40),
      ("#2E9BFF", "#21D4F0"), place([Path(sq[0])], 120, center([Path(sq[0])]), (206, 70)), (0.7, 0.45))
 
 inf = shapes("infinity")
@@ -161,18 +162,19 @@ tile("canali_tv", [(screen.d(), "#FFFFFF", "evenOdd"), (text_paths("TV", 20, 600
 
 ds = {i: (p, c) for p, c, i in shapes("disney")}
 tile("disney", fit([(ds["Path"][0], "#FFFFFF", "nonZero"), (ds["Path-1"][0], "#FFFFFF", "nonZero"),
-                    (ds["Path-3"][0], "#4FC3FF", "nonZero")], 112, 50),
+                    (ds["Path-3"][0], "#4FC3FF", "nonZero")], 128, 58),
      ("#2E7BFF", "#3BD1FF"), place([ds["Path-1"][0]], 110, center([ds["Path-1"][0]]), (172, 80)))
 
 hb = shapes("hbomax")
 dot = [p for p, c, i in hb if p.bbox()[2] - p.bbox()[0] < 210 and p.bbox()[1] > 100 and p.bbox()[3] < 400]
-tile("hbomax", fit([(p, "#FFFFFF", "evenOdd") for p, _, _ in hb], 100, 52), ("#7B4DFF", "#4F6BFF"),
+tile("hbomax", fit([(p, "#FFFFFF", "evenOdd") for p, _, _ in hb], 88, 46), ("#7B4DFF", "#4F6BFF"),
      place(dot, 120, center(dot), (176, 74)))
 
 dp = shapes("discovery")
 d_mark = [p for p, c, _ in dp if c == "#ffffff"][0]               # the D, drawn in gradients in the original
 word = [p for p, c, _ in dp if c == "#000000" and p.bbox()[0] > 250][0]
-tile("discovery", fit([(d_mark, "#3D7BFF", "nonZero"), (word, "#FFFFFF", "evenOdd")], 116, 34), ("#3D7BFF", "#FF8A2A"),
+# The mark over the word: side by side the word's small letters were 7 px high on the TV.
+tile("discovery", fit([(d_mark, "#3D7BFF", "nonZero")], 44, 30, cy=30) + fit([(word, "#FFFFFF", "evenOdd")], 124, 26, cy=62), ("#3D7BFF", "#FF8A2A"),
      place([d_mark], 140, center([d_mark]), (168, 70)))
 
 sp = [Path(s) for s in shapes("spotify")[0][0].as_subpaths()]
