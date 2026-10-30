@@ -8,7 +8,7 @@ own colours. Netflix, YouTube and RaiPlay keep their light in the corner and the
 --android writes banner_<name>.xml (VectorDrawables, 160x90 viewport) for the Metz; --web writes casa-tiles.js
 (SVG data URIs by webOS app id) for the LG C3; --preview writes one SVG per tile. Needs svgelements and fonttools.
 Logos: Netflix 2015, Prime Video 2024, YouTube 2017, DAZN boxed, Now, RaiPlay 2023, Mediaset Infinity 2023,
-Disney+ (2019), HBO Max (2025)."""
+Disney+ (2019), HBO Max (2025), discovery+, Spotify."""
 import argparse, base64, json, os, re
 from svgelements import SVG, Shape, Path, Matrix
 from fontTools.ttLib import TTFont
@@ -70,9 +70,10 @@ def center(paths):
     return ((min(b[0] for b in bbs) + max(b[2] for b in bbs)) / 2, (min(b[1] for b in bbs) + max(b[3] for b in bbs)) / 2)
 
 
-def one(paths):
-    """Several subpaths as one path (holes stay holes under evenodd)."""
-    return Path("".join(Path(p).d() for p in paths))
+def one(paths, absolute=False):
+    """Several subpaths as one path (holes stay holes under evenodd). The approved symbols were drawn with each
+    subpath's own d, where a relative "m" chains on the previous one; absolute=True keeps the true shape."""
+    return Path(" ".join(Path(p).d(relative=False) for p in paths) if absolute else "".join(Path(p).d() for p in paths))
 
 
 def text_paths(text, size, weight, cx, cy, tracking=0.0):
@@ -168,10 +169,22 @@ dot = [p for p, c, i in hb if p.bbox()[2] - p.bbox()[0] < 210 and p.bbox()[1] > 
 tile("hbomax", fit([(p, "#FFFFFF", "evenOdd") for p, _, _ in hb], 100, 52), ("#7B4DFF", "#4F6BFF"),
      place(dot, 120, center(dot), (176, 74)))
 
+dp = shapes("discovery")
+d_mark = [p for p, c, _ in dp if c == "#ffffff"][0]               # the D, drawn in gradients in the original
+word = [p for p, c, _ in dp if c == "#000000" and p.bbox()[0] > 250][0]
+tile("discovery", fit([(d_mark, "#3D7BFF", "nonZero"), (word, "#FFFFFF", "evenOdd")], 116, 34), ("#3D7BFF", "#FF8A2A"),
+     place([d_mark], 140, center([d_mark]), (168, 70)))
+
+sp = [Path(s) for s in shapes("spotify")[0][0].as_subpaths()]
+sp_icon = [s for s in sp if s.bbox()[2] < 170]                     # the circle and its three waves
+sp_word = [s for s in sp if 180 < s.bbox()[0] < 539]               # the name, without the (R)
+tile("spotify", fit([(one(sp_icon, True), "#1ED760", "evenOdd"), (one(sp_word, True), "#FFFFFF", "evenOdd")], 112, 36),
+     ("#1ED760", "#1ED760"), place([Path(sp_icon[0])], 120, center([Path(sp_icon[0])]), (176, 78)))
+
 ANDROID = ["netflix", "prime", "youtube", "dazn", "now", "raiplay", "canali_tv", "infinity"]
 WEBOS = {"netflix": "netflix", "amazon": "prime", "com.disney.disneyplus-prod": "disney", "com.wbd.stream": "hbomax",
          "youtube.leanback.v4": "youtube", "dazn": "dazn", "com.atlas.tv": "now", "it.rainet.raiplay": "raiplay",
-         "com.5412449.198417": "infinity"}
+         "com.5412449.198417": "infinity", "com.discovery.dplus.emea": "discovery", "spotify-beehive": "spotify"}
 
 
 # ---- Writers ----
