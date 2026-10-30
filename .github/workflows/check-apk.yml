@@ -1,0 +1,40 @@
+name: Check APK (fork lorenzoma97, branches other than casa)
+
+# Compiles and unit-tests the launcher and the Casa add-on on work branches, without signing or publishing:
+# apk-latest (and the TV's update prompt) only ever come from the casa branch (build-apk.yml).
+on:
+  push:
+    branches-ignore: [casa, main]
+    paths: ["launcher/**", "addons/**", "themes/lorenzo/**", ".github/workflows/check-apk.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platforms;android-34 build-tools;34.0.0
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Theme into the launcher
+        run: |
+          python3 -c 'import json,sys; json.load(open(sys.argv[1]))' themes/lorenzo/config.json
+          mkdir -p launcher/app/src/main/assets
+          cp themes/lorenzo/config.json launcher/app/src/main/assets/theme.json
+      - name: Launcher
+        working-directory: launcher
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon testReleaseUnitTest assembleDebug
+      - name: Casa add-on
+        working-directory: addons/casa
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon testReleaseUnitTest assembleDebug
